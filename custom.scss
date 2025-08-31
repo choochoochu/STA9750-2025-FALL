@@ -10,35 +10,36 @@ body {
   background-color: #e5e7e4;
 }
 
-main { flex: 1; } /* do I need this? */
+main { flex: 1; }
 
 /* Hero section */
-.hero {
-  padding-top: clamp(2rem, 5vw, 4rem);
-  padding-bottom: clamp(2rem, 5vw, 4rem);
-}
-
 .hero .anchorjs-link { display: none !important; }
+
+.narrow-hero {
+  max-width: 980px;      /* adjust to taste: 800–960px are common */
+  margin-inline: auto;   /* centers it */
+  width: 100%;
+}
 
 /* Typography */
 .kicker {
   font-weight: 500;
-  font-size: clamp(1.1rem, 1.4vw + .8rem, 1.4rem);
+  font-size: clamp(0.99rem, 1.26vw + .72rem, 1.26rem);
 }
 
 .display-xl {
   font-weight: 800;
-  font-size: clamp(2.2rem, 3.2vw + 1.6rem, 4.2rem);
+  font-size: clamp(1.98rem, 2.88vw + 1.44rem, 3.78rem);
   letter-spacing: -0.01em;
 }
 
-.bodycopy { max-width: 60ch; }
+.bodycopy { max-width: 54ch; }
 
-.kicker.spaced-paragraph { margin-top: 30px; }  /* extra space above */
+.kicker.spaced-paragraph { margin-top: 30px; }
 
 /* Hero columns */
-.hero .portrait-col { flex: 0 0 clamp(260px, 32vw, 420px); } /* fixed portrait column */
-.hero .text-col     { flex: 1 1 0; }                         /* text takes remaining */
+.hero .portrait-col { flex: 0 0 clamp(260px, 30vw, 400px); } 
+.hero .text-col     { flex: 1 1 0; }                        
 
 /* Portrait figure column */
 .hero figure.portrait { max-width: 100%; }
@@ -49,11 +50,11 @@ main { flex: 1; } /* do I need this? */
 }
 
 /* Column gap */
-.hero .quarto-layout-row { column-gap: 3rem; } /* pushes the two columns apart */
+.hero .quarto-layout-row { column-gap: 3rem; }
 
 @media (min-width: 992px) {
   .hero .quarto-layout-row {
-    column-gap: clamp(3rem, 6vw, 7rem);
+    column-gap: clamp(3rem, 5vw, 6.5rem);
   }
 }
 
@@ -74,11 +75,11 @@ main { flex: 1; } /* do I need this? */
 .btn-primary {
   background-color: #7B9387;
   border-color: #7B9387;
-  color: #FFF; /* keep white for contrast */
+  color: #FFF;
 }
 .btn-primary:hover,
 .btn-primary:focus {
-  background-color: darken(#7B9387, 20%); /* matches the 20% you used */
+  background-color: darken(#7B9387, 20%);
   border-color: darken(#7B9387, 20%);
 }
 

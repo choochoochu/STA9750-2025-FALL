@@ -3,21 +3,19 @@ title: ""
 page-layout: full
 ---
 
-&nbsp;
-
-::: {.container-xxl .hero .py-5 .mt-5 .pt-5}
+::: {.container-xxl .hero .narrow-hero .py-5}
 ::: {.quarto-layout-row}
 
 ::: {.quarto-layout-cell .text-col}
 <h2 class="display-xl lh-tight">Hi! I'm Sojung</h2>
 
 ::: {.kicker .spaced-paragraph}
-I’m a **graduate student** studying **quantitative methods and modeling**. I also work on startup ideas for fun and am fascinated by the world of design. You could say my one true love is merging **creativity** and **tech**.\
+I’m a **graduate student** majoring in **quantitative methods and modeling**. I also work on startup ideas for fun and am fascinated by the world of design. You could say my one true love is merging **creativity** and **tech**.\
 
 Want to connect? I'm always excited to meet new people! Find me on [LinkedIn](www.linkedin.com/in/sojungpchu) or shoot me an [Email](mailto:sojungpchu@gmail.com).
 
 
-<a class="btn btn-primary mt-4" href="resume/Resume Fa 25.pdf" target="_blank">Peep my resume</a>
+<a class="btn btn-primary mt-4" href="resume/Resume-Fa-25.pdf" target="_blank">Peep my resume</a>
 :::
 :::
 
@@ -29,8 +27,6 @@ Want to connect? I'm always excited to meet new people! Find me on [LinkedIn](ww
 
 :::
 :::
-
-&nbsp;
 
 &nbsp;
 

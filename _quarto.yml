@@ -1,7 +1,7 @@
 project:
   type: website
   output-dir: docs
-
+  resources: "resume/Resume-Fa-25.pdf"
 website:
   title: "STA 9750 Submission Material"
   description:
