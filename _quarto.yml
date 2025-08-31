@@ -1,0 +1,25 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "STA 9750 Submission Material"
+  description:
+    Course Projects for STA 9750 at Baruch College
+  site-url: "https://choochoochu.github.io/STA9750-2025-FALL/"
+  navbar:
+    background: light
+    foreground: dark
+    search: false
+    
+format:
+  html:
+    theme:
+      - flatly
+      - custom.scss
+    toc: false
+    linkcolor: "#7B9387"
+
+editor:
+  mode: source
+  

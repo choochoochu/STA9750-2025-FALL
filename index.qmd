@@ -1,0 +1,50 @@
+---
+title: ""
+page-layout: full
+---
+
+&nbsp;
+
+::: {.container-xxl .hero .py-5 .mt-5 .pt-5}
+::: {.quarto-layout-row}
+
+::: {.quarto-layout-cell .text-col}
+<h2 class="display-xl lh-tight">Hi! I'm Sojung</h2>
+
+::: {.kicker .spaced-paragraph}
+I’m a **graduate student** studying **quantitative methods and modeling**. I also work on startup ideas for fun and am fascinated by the world of design. You could say my one true love is merging **creativity** and **tech**.\
+
+Want to connect? I'm always excited to meet new people! Find me on [LinkedIn](www.linkedin.com/in/sojungpchu) or shoot me an [Email](mailto:sojungpchu@gmail.com).
+
+
+<a class="btn btn-primary mt-4" href="resume/Resume Fa 25.pdf" target="_blank">Peep my resume</a>
+:::
+:::
+
+::: {.quarto-layout-cell .portrait-col}
+<figure class="portrait mb-0 mt-4 mt-lg-5">
+<img src="images/headshot.jpg" alt="Photo of Sojung Chu" class="img-fluid rounded-circle">
+</figure>
+:::
+
+:::
+:::
+
+&nbsp;
+
+&nbsp;
+
+&nbsp;
+
+&nbsp;
+
+
+```{r}
+#| include: false
+1 + 1
+```
+
+------------------------------------------------------------------------
+<footer class="site-footer">
+Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`
+</footer>
