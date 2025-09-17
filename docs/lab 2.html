@@ -6,8 +6,9 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
+<meta name="author" content="Sojung Chu">
 
-<title>STA 9750 Submission Material</title>
+<title>Houston housing market – STA 9750 Submission Material</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -88,47 +89,157 @@ ul.task-list li input[type="checkbox"] {
     </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
 <!-- margin-sidebar -->
-    
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+    <div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="lab 2.html"><i class="bi bi-file-slides"></i>RevealJS</a></li></ul></div></div>
 <!-- main -->
-<main class="content column-page" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+<main class="content" id="quarto-document-content">
 
-
-
-
-<div class="container-xxl hero narrow-hero py-5">
-<div class="quarto-layout-row">
-<div class="quarto-layout-cell text-col">
-<h2 class="display-xl lh-tight anchored">
-Hi! I’m Sojung
-</h2>
-<div class="kicker spaced-paragraph">
-<p>I’m a <strong>graduate student</strong> at CUNY Baruch College majoring in <strong>quantitative methods and modeling</strong>. I also work on startup ideas for fun and am fascinated by the world of design. You could say my one true love is merging <strong>creativity</strong> and <strong>tech</strong>.<br>
-</p>
-<p>Want to connect? I’m always excited to meet new people! Find me on <a href="https://www.linkedin.com/in/sojungpchu" target="_blank">LinkedIn</a> or shoot me an <a href="mailto:sojungpchu@gmail.com">Email</a>.</p>
-<p><a class="btn btn-primary mt-4" href="resume/Resume-Fa-25.pdf" target="_blank">Peep my resume</a></p>
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Houston housing market</h1>
 </div>
-</div>
-<div class="quarto-layout-cell portrait-col">
-<figure class="portrait mb-0 mt-4 mt-lg-5 figure">
-<img src="images/headshot.jpg" alt="Photo of Sojung Chu" class="img-fluid rounded-circle figure-img">
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Sojung Chu </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="annual-houses-sold-in-houston-tx" class="level2">
+<h2 class="anchored" data-anchor-id="annual-houses-sold-in-houston-tx">Annual Houses Sold in Houston, TX:</h2>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-2_files/figure-revealjs/unnamed-chunk-1-1.png" class="img-fluid figure-img" width="960"></p>
 </figure>
 </div>
 </div>
 </div>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<hr>
-<footer class="site-footer">
-Last Updated: Wednesday 09 17, 2025 at 19:21PM
-</footer>
+</section>
+<section id="slide-2" class="level2">
+<h2 class="anchored" data-anchor-id="slide-2">Slide 2</h2>
+<p>Annual sales trend:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-2_files/figure-revealjs/unnamed-chunk-2-1.png" class="img-fluid figure-img" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="slide-3" class="level2">
+<h2 class="anchored" data-anchor-id="slide-3">Slide 3</h2>
+<p>Annual sales trend:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-2_files/figure-revealjs/unnamed-chunk-3-1.png" class="img-fluid figure-img" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
 
 
+</section>
 
 </main> <!-- /main -->
+
+
+<script>
+
+  // htmlwidgets need to know to resize themselves when slides are shown/hidden.
+
+  // Fire the "slideenter" event (handled by htmlwidgets.js) when the current
+
+  // slide changes (different for each slide format).
+
+  (function () {
+
+    // dispatch for htmlwidgets
+
+    function fireSlideEnter() {
+
+      const event = window.document.createEvent("Event");
+
+      event.initEvent("slideenter", true, true);
+
+      window.document.dispatchEvent(event);
+
+    }
+
+
+
+    function fireSlideChanged(previousSlide, currentSlide) {
+
+      fireSlideEnter();
+
+
+
+      // dispatch for shiny
+
+      if (window.jQuery) {
+
+        if (previousSlide) {
+
+          window.jQuery(previousSlide).trigger("hidden");
+
+        }
+
+        if (currentSlide) {
+
+          window.jQuery(currentSlide).trigger("shown");
+
+        }
+
+      }
+
+    }
+
+
+
+    // hookup for slidy
+
+    if (window.w3c_slidy) {
+
+      window.w3c_slidy.add_observer(function (slide_num) {
+
+        // slide_num starts at position 1
+
+        fireSlideChanged(null, w3c_slidy.slides[slide_num - 1]);
+
+      });
+
+    }
+
+
+
+  })();
+
+</script>
+
+
+
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
