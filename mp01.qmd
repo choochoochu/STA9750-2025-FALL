@@ -169,7 +169,7 @@ winners_dt <- top_global_by_category |>
   datatable(options = list(searching = FALSE, info = FALSE)) |>
   formatRound("Total Hours", 0)
 ```
-**Table 1: The Highest Total Hours of Global Viewership in Each Category**
+**Table 1: The Highest Total Hours of Global Viewership in Each Netflix Category**
 ```{r}
 #| echo: false
 winners_dt
@@ -250,7 +250,7 @@ num1_dt <- us_films_debut_then_num1 |>
 
 - In the US, **`{r} nrow(us_films_debut_then_num1)` films** debuted below #1 but later reached #1. The most recent was **`{r} most_recent_us_late_number1$show_title`**, which hit #1 on **`{r} format(most_recent_us_late_number1$first_week_at_1, "%m-%d-%Y")`**.
 
-**Table 2: Films Reached Number 1 in the US Without Debuting There**
+**Table 2: Films Reached Number 1 on Netflix in the US Without Debuting There**
 ```{r}
 #| echo: false
 num1_dt
@@ -311,7 +311,7 @@ st_countries <- COUNTRY_TOP_10 |>
   summarize(num_countries = n_distinct(country_name)) |>
   ungroup()
 ```
-
+**Table 3: Most Viewed Netflix English Language TV Season**
 ```{r}
 #| echo: false
 eng_top5_dt
