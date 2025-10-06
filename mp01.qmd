@@ -19,7 +19,7 @@ execute:
 ![Netflix logo](images/Netflix.png){width=50%}
 
 ## 1. Executive Summary
-This report analyzes Netflix's data collection of its film and TV, with the goal of translating viewing patterns into clear, compelling stories that celebrate success, spotlight momentum, and frame opportunities for growthThe Public Relations (PR) team proposes 3 press releases:
+This report analyzes Netflix's data collection of its film and TV, with the goal of translating viewing patterns into clear, compelling stories that celebrate success, spotlight momentum, and frame opportunities for growth. The Public Relations (PR) team proposes 3 press releases:
 
 - STRANGER THINGS Season 5 Sets Sights on No. 1 as Netflix’s Most Viewed English Language TV Season, While Season 4 Holds No. 2
 - Hindi Titles Enter Netflix Global Top 10, Reflecting the Power of India’s Population and Viewership
@@ -34,25 +34,27 @@ The following methods were used to obtain and prepare the data for analysis.
 
 ### 3.1  Data Aquisition
 
-The PR team acquired data from [Netflix's TuDum Top 10](https://www.netflix.com/tudum/top10), the official companion site that publishes data on Netflix's most popular shows and movies. The selected data sets include the Global Top 10 and Country-wide Top 10. They contain information 
+The PR team acquired data from [Netflix's TuDum Top 10](https://www.netflix.com/tudum/top10), the official companion site that publishes data on Netflix's most popular shows and movies. The selected data sets include the Global Top 10 and Country-wide Top 10. 
 
 ```{r}
-if(!dir.exists(file.path("data", "mp01"))){
-    dir.create(file.path("data", "mp01"), showWarnings=FALSE, recursive=TRUE)
+if (!dir.exists(file.path("data", "mp01"))) {
+  dir.create(file.path("data", "mp01"), showWarnings = FALSE, recursive = TRUE)
 }
 
 GLOBAL_TOP_10_FILENAME <- file.path("data", "mp01", "global_top10_alltime.csv")
 
-if(!file.exists(GLOBAL_TOP_10_FILENAME)){
-    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv", 
-                  destfile=GLOBAL_TOP_10_FILENAME)
+if (!file.exists(GLOBAL_TOP_10_FILENAME)) {
+  download.file("https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv",
+    destfile = GLOBAL_TOP_10_FILENAME
+  )
 }
 
 COUNTRY_TOP_10_FILENAME <- file.path("data", "mp01", "country_top10_alltime.csv")
 
-if(!file.exists(COUNTRY_TOP_10_FILENAME)){
-    download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv", 
-                  destfile=COUNTRY_TOP_10_FILENAME)
+if (!file.exists(COUNTRY_TOP_10_FILENAME)) {
+  download.file("https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv",
+    destfile = COUNTRY_TOP_10_FILENAME
+  )
 }
 ```
 
@@ -61,7 +63,8 @@ if(!file.exists(COUNTRY_TOP_10_FILENAME)){
 The structure was examined for the global top 10 data and revealed that when an entry for the `season_title` is missing, it is being read as a *string* instead of a proper NA value.
 
 ```{r}
-if(!require("tidyverse")) install.packages("tidyverse")
+#| results: "hide"
+if (!require("tidyverse")) install.packages("tidyverse")
 library(readr)
 library(dplyr)
 library(scales)
@@ -94,32 +97,34 @@ Key findings from the exploratory data analysis (EDA) conducted in R using the `
 library(DT)
 library(stringr)
 
-format_titles <- function(df){
-    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
-    df
+format_titles <- function(df) {
+  colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+  df
 }
 
-GLOBAL_TOP_10 |> 
-    mutate(`runtime_(minutes)` = round(60 * runtime)) |>
-    select(-season_title, 
-           -runtime) |>
-    format_titles() |>
-    head(n=20) |>
-    datatable(options=list(searching=FALSE, info=FALSE)) |>
-    formatRound(c('Weekly Hours Viewed', 'Weekly Views'))
+GLOBAL_TOP_10 |>
+  mutate(`runtime_(minutes)` = round(60 * runtime)) |>
+  select(
+    -season_title,
+    -runtime
+  ) |>
+  format_titles() |>
+  head(n = 20) |>
+  datatable(options = list(searching = FALSE, info = FALSE)) |>
+  formatRound(c("Weekly Hours Viewed", "Weekly Views"))
 ```
 
 ```{r, include=FALSE}
-format_titles <- function(df){
-    colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
-    df
+format_titles <- function(df) {
+  colnames(df) <- str_replace_all(colnames(df), "_", " ") |> str_to_title()
+  df
 }
 
-COUNTRY_TOP_10 |> 
-    select(-country_iso2) |>
-    format_titles() |>
-    head(n=20) |>
-    datatable(options=list(searching=FALSE, info=FALSE))
+COUNTRY_TOP_10 |>
+  select(-country_iso2) |>
+  format_titles() |>
+  head(n = 20) |>
+  datatable(options = list(searching = FALSE, info = FALSE))
 ```
 
 ```{r}
@@ -133,7 +138,7 @@ num_countries <- COUNTRY_TOP_10 |>
 top_non_english_global <- GLOBAL_TOP_10 |>
   filter(category != "Films (English)") |>
   group_by(show_title) |>
-  summarize(total_weeks = max(cumulative_weeks_in_top_10, na.rm = TRUE)) |> 
+  summarize(total_weeks = max(cumulative_weeks_in_top_10, na.rm = TRUE)) |>
   slice_max(total_weeks, n = 1)
 ```
 
@@ -162,7 +167,7 @@ winners_dt <- top_global_by_category |>
   format_titles() |>
   arrange(Category) |>
   datatable(options = list(searching = FALSE, info = FALSE)) |>
-  formatRound('Total Hours', 0)
+  formatRound("Total Hours", 0)
 ```
 **Table 1: The Highest Total Hours of Global Viewership in Each Category**
 ```{r}
@@ -176,7 +181,7 @@ longest_tv_run_country <- COUNTRY_TOP_10 |>
   group_by(country_name, show_title) |>
   summarize(longest_run = max(cumulative_weeks_in_top_10, na.rm = TRUE)) |>
   ungroup() |>
-  slice_max(longest_run, n=1)
+  slice_max(longest_run, n = 1)
 ```
 
 - **`{r} longest_tv_run_country$show_title`** had the longest run in a country’s top 10, lasting **`{r} longest_tv_run_country$longest_run` weeks** in **`{r} longest_tv_run_country$country_name`**.
@@ -189,7 +194,7 @@ country_under_200 <- COUNTRY_TOP_10 |>
   filter(weeks_available < 200)
 ```
 
-- Netflix provides over 200 weeks of service history for all countries within the data set except **`{r} country_under_200$country_name`**. Netflix ceased operations there as of **`{r} country_under_200$last_week`**, which is the last week recorded.
+- Netflix provides over 200 weeks of service history for all countries within the data set except **`{r} country_under_200$country_name`**. Netflix ceased operations there as of **`{r} format(country_under_200$last_week, "%m-%d-%Y")`**, which is the last week recorded.
 
 ```{r}
 total_squid_game_global <- GLOBAL_TOP_10 |>
@@ -209,8 +214,10 @@ red_notice_2021 <- GLOBAL_TOP_10 |>
   filter(show_title == "Red Notice", year(week) == 2021) |>
   summarize(total_hours_2021 = sum(weekly_hours_viewed, na.rm = TRUE)) |>
   ungroup() |>
-  mutate(runtime_hours = 118/60,                          # 1 hour 58 minutes
-    approx_views_2021  = total_hours_2021 / runtime_hours) # hours ÷ hours-per-view
+  mutate(
+    runtime_hours = 118 / 60, # 1 hour 58 minutes
+    approx_views_2021 = total_hours_2021 / runtime_hours
+  ) # hours ÷ hours-per-view
 ```
 
 - **Red Notice** received approximately **`{r} format(round(red_notice_2021$approx_views_2021), big.mark = ",")` views** in 2021.
@@ -239,7 +246,6 @@ num1_dt <- us_films_debut_then_num1 |>
   format_titles() |>
   arrange(desc(`First Week At 1`)) |>
   datatable(options = list(searching = FALSE, info = FALSE))
-
 ```
 
 - In the US, **`{r} nrow(us_films_debut_then_num1)` films** debuted below #1 but later reached #1. The most recent was **`{r} most_recent_us_late_number1$show_title`**, which hit #1 on **`{r} format(most_recent_us_late_number1$first_week_at_1, "%m-%d-%Y")`**.
@@ -258,7 +264,6 @@ top_tv_debut <- COUNTRY_TOP_10 |>
     debut_week = min(week, na.rm = TRUE)
   ) |>
   ungroup() |>
-  
   # Join back
   inner_join(COUNTRY_TOP_10, by = c("show_title", "season_title", "debut_week" = "week")) |>
   group_by(show_title, season_title) |>
@@ -292,12 +297,12 @@ eng_top5_dt <- top5_eng_tv_seasons |>
   format_titles() |>
   arrange(desc(`Total Hours`)) |>
   datatable(options = list(searching = FALSE, info = FALSE)) |>
-  formatRound('Total Hours', 0)
+  formatRound("Total Hours", 0)
 
 # Total viewership and length of popularity
 st_global <- GLOBAL_TOP_10 |>
   filter(category == "TV (English)", show_title == "Stranger Things") |>
-  summarize(total_hours  = sum(weekly_hours_viewed, na.rm = TRUE), weeks_global = n_distinct(week)) |>
+  summarize(total_hours = sum(weekly_hours_viewed, na.rm = TRUE), weeks_global = n_distinct(week)) |>
   ungroup()
 
 # How many countries had the show in its top 10
@@ -326,7 +331,7 @@ library(scales)
 views_per_sub_week <- 5
 
 # --- Ensure Date columns ---
-GLOBAL_TOP_10  <- GLOBAL_TOP_10  |> mutate(week = as.Date(week))
+GLOBAL_TOP_10 <- GLOBAL_TOP_10 |> mutate(week = as.Date(week))
 COUNTRY_TOP_10 <- COUNTRY_TOP_10 |> mutate(week = as.Date(week))
 
 # --- India weight per show = share of its country-weeks that are India ---
@@ -365,7 +370,9 @@ aug25 <- india_aug$est_avg_subs[india_aug$Month == "Aug 2025"]
 
 rate_change_pct <- if (length(aug24) == 1 && length(aug25) == 1 && !is.na(aug24) && !is.na(aug25) && aug24 > 0) {
   (aug25 / aug24 - 1) * 100
-} else NA_real_
+} else {
+  NA_real_
+}
 
 # --- Plot ONLY Aug 2024 vs Aug 2025, with YoY % on the 2025 bar ---
 ggplot(india_aug, aes(x = Month, y = est_avg_subs)) +
@@ -387,16 +394,17 @@ ggplot(india_aug, aes(x = Month, y = est_avg_subs)) +
     axis.text.x = element_text(size = 10),
     panel.grid.minor.x = element_blank()
   )
-
 ```
 ```{r}
-format_titles <- function(df){
-  colnames(df) <- colnames(df) |> str_replace_all("_", " ") |> str_to_title()
+format_titles <- function(df) {
+  colnames(df) <- colnames(df) |>
+    str_replace_all("_", " ") |>
+    str_to_title()
   df
 }
 
 # Ensure Date columns
-GLOBAL_TOP_10  <- GLOBAL_TOP_10  |> mutate(week = as.Date(week))
+GLOBAL_TOP_10 <- GLOBAL_TOP_10 |> mutate(week = as.Date(week))
 COUNTRY_TOP_10 <- COUNTRY_TOP_10 |> mutate(week = as.Date(week))
 
 # Titles disproportionately present in India (soft proxy for Hindi)
@@ -413,9 +421,11 @@ india_dominant_titles <- COUNTRY_TOP_10 |>
   ) |>
   ungroup() |>
   mutate(share_india = if_else(total_rows > 0, india_rows / total_rows, NA_real_)) |>
-  filter(!is.na(share_india),
-         india_weeks >= min_india_weeks,
-         share_india >= min_share_india) |>
+  filter(
+    !is.na(share_india),
+    india_weeks >= min_india_weeks,
+    share_india >= min_share_india
+  ) |>
   distinct(show_title)
 
 # Global debut (first week seen in GLOBAL_TOP_10) for those India-dominant titles
@@ -481,13 +491,11 @@ top5_list <- sos_top5_overall |>
   transmute(label = paste0(show_title, " S", season_number)) |>
   pull(label) |>
   paste(collapse = ", ")
-
 ```
 
-Fueled by record season-over-season gains across serialized TV, Netflix today celebrates a slate of franchises scaling to new heights and announces potential expansion commissioning in fast-growing international markets. The biggest leap came from `{r} top1$show_title` (Season `{r} top1$season_number`), which surged `{r} round(top1$growth_pct, 1)`% versus its prior season (from `{r} format(round(top1$prev_total_hours), big.mark = ",", trim = TRUE)` to `{r} format(round(top1$total_hours), big.mark = ",", trim = TRUE)` total hours). Notably, `{r} noneng_count` of the Top 5 growth breakouts are Non-English—clear evidence of accelerating demand beyond English-language markets—while the Top 5 averaged `{r} round(avg_growth_top5, 1)`% SoS growth overall (standouts include `{r} top5_list`).
+Fueled by record season-over-season gains across serialized TV, Netflix today celebrates a slate of franchises scaling to new heights and announces potential expansion commissioning in fast-growing international markets. The biggest leap came from `{r} top1$show_title` (Season `{r} top1$season_number`), which surged `{r} round(top1$growth_pct, 1)`% versus its prior season (from `{r} format(round(top1$prev_total_hours), big.mark = ",", trim = TRUE)` to `{r} format(round(top1$total_hours), big.mark = ",", trim = TRUE)` total hours). Notably, `{r} noneng_count` of the Top 5 growth breakouts are Non-English and evidence of accelerating demand beyond English-language markets, while the Top 5 averaged `{r} round(avg_growth_top5, 1)`% SoS growth overall (standouts include `{r} top5_list`).
 Building on this momentum, Netflix will deepen investment in high-growth regions (content development, local marketing, and talent partnerships) to extend multi-season franchises and capture rising engagement where audiences are expanding fastest.
 
 ## 6. Conclusion
 
 In conclusion, the PR team report emphasizes Netflix's success with data-based metrics. There are three suggested press releases from the findings. 
-
