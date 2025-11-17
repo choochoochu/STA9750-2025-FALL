@@ -16,7 +16,7 @@ execute:
   fig-show: "hide"
 ---
 
-![NYC Parks logo](images/parks.jpg){.parks-logo}
+![NYC Parks logo](images/parks.png){.parks-logo}
 
 ## Executive Summary
 
@@ -28,7 +28,7 @@ The following methods were used to obtain and prepare the data for analysis.
 
 ### 3.1 Data Acquisition
 
-NYC District boundaries data was responsibly acquired from [the NYC Department of Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/city-council) since NYC is divided into 51 City Council Districts. 
+NYC District boundaries data was responsibly acquired from the [NYC Department of Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/city-council) since NYC is divided into 51 City Council Districts. 
 
 ```{r}
 library(sf)
@@ -86,7 +86,6 @@ get_nyc_council <- function(
 }
 
 nyc_council <- get_nyc_council()
-nyc_council
 ```
 
 NYC Forestry Tree Points data was acquired from the NYC OpenData through an API. 
@@ -99,6 +98,7 @@ if (!dir.exists("data/mp03")) {
 }
 
 get_nyc_tree_points <- function() {
+
   # Packages
   if (!require("httr2")) install.packages("httr2")
   library(httr2)
@@ -112,22 +112,19 @@ get_nyc_tree_points <- function() {
   # Endpoint & Paging Setup
   ENDPOINT <- "https://data.cityofnewyork.us/resource/hn5i-inap.geojson"
 
-  BATCH_SIZE <- 50000 # $limit
-  OFFSET <- 0 # $offset
+  BATCH_SIZE <- 50000   # $limit
+  OFFSET <- 0           # $offset
   END_OF_EXPORT <- FALSE
   FILE_INDEX <- 1
   ALL_DATA <- list()
 
   while (!END_OF_EXPORT) {
-    cat("Requesting items", OFFSET, "to", BATCH_SIZE + OFFSET, "\n")
 
-    # consistent file names: nyc_treepoints_0001.geojson, etc.
     file_name <- sprintf("nyc_treepoints_%04d.geojson", FILE_INDEX)
     file_path <- file.path("data/mp03", file_name)
 
     # i. Only download if not already saved locally
     if (!file.exists(file_path)) {
-      cat("  Downloading and saving to", file_name, "\n")
 
       req <- request(ENDPOINT) |>
         req_url_query(
@@ -139,21 +136,16 @@ get_nyc_tree_points <- function() {
 
       resp_body_raw(resp) |>
         writeBin(con = file_path)
-    } else {
-      cat("  File already exists, skipping download:", file_name, "\n")
     }
 
     # ii. Read this page with st_read
     batch_data <- st_read(file_path, quiet = TRUE)
-
-    cat("  Retrieved", NROW(batch_data), "rows\n")
 
     ALL_DATA <- c(ALL_DATA, list(batch_data))
 
     # Check for end of dataset
     if (NROW(batch_data) != BATCH_SIZE) {
       END_OF_EXPORT <- TRUE
-      cat("End of Data Export Reached\n")
     } else {
       OFFSET <- OFFSET + BATCH_SIZE
       FILE_INDEX <- FILE_INDEX + 1
@@ -163,16 +155,10 @@ get_nyc_tree_points <- function() {
   # iii. Combine all pages with bind_rows
   ALL_DATA <- bind_rows(ALL_DATA)
 
-  cat(
-    "Data export complete:", NROW(ALL_DATA), "rows and",
-    NCOL(ALL_DATA), "columns.\n"
-  )
-
   return(ALL_DATA)
 }
 
 trees <- get_nyc_tree_points()
-trees
 ```
 
 ### Data Integration
@@ -274,7 +260,7 @@ trees_by_district <- trees_with_district |>
 district_most_trees <- trees_by_district |>
   slice_max(n_trees, n = 1)
 
-district_most_trees
+invisible(district_most_trees)
 ```
 
 - Council District **`{r} district_most_trees$CounDist`** has the most trees.
@@ -295,7 +281,7 @@ trees_density <- trees_with_district |>
 district_highest_density <- trees_density |>
   slice_max(tree_density, n = 1)
 
-district_highest_density
+invisible(district_highest_density)
 ```
 - Council District **`{r} district_highest_density$CounDist`** has the highest density of trees.
 
@@ -318,7 +304,7 @@ dead_fraction <- trees_with_district |>
 district_highest_dead_fraction <- dead_fraction |>
   slice_max(fraction_dead, n = 1)
 
-district_highest_dead_fraction
+invisible(district_highest_dead_fraction)
 ```
 - Council District **`{r} district_highest_dead_fraction$CounDist`** has the highest fraction of dead trees.
 
@@ -345,7 +331,7 @@ most_common_manhattan_species <- manhattan_trees |>
   count(genusspecies, sort = TRUE) |>
   slice(1)
 
-most_common_manhattan_species
+invisible(most_common_manhattan_species)
 ```
 
 - The most common tree species in Manhattan is **`{r} most_common_manhattan_species$genusspecies`**.
@@ -374,13 +360,11 @@ trees_with_distance <- trees |>
 closest_tree <- trees_with_distance |>
   slice_min(distance, n = 1)
 
-closest_tree
-
 closest_tree_species <- closest_tree |>
   st_drop_geometry() |>
   pull(genusspecies)
 
-closest_tree_species
+invisible(closest_tree_species)
 ```
 - The tree closest to Baruch’s campus is a **`{r} closest_tree_species`**.
 
@@ -500,7 +484,7 @@ district26_shade_summary <- district26_trees |>
     shade_target_20pct = round(shade_trees * 0.20)
   )
 
-district26_shade_summary
+invisible(district26_shade_summary)
 ```
 
 ```{r}
@@ -551,7 +535,7 @@ district26_stumps <- trees_with_borough |>
     n_stumps = n()
   )
 
-district26_stumps
+invisible(district26_stumps)
 ```
 - Replace the **`{r} district26_stumps$n_stumps` stumps** in District 26 with new plantings.
 
@@ -705,7 +689,7 @@ stumps_focus <- stumps_by_district |>
   filter(CounDist %in% c(1, 26, 33, 38)) |>
   arrange(CounDist)
 
-stumps_focus
+invisible(stumps_focus)
 
 # Bar chart
 ggplot(
