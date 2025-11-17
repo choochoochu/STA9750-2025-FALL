@@ -49,6 +49,11 @@ main { flex: 1; }
   display: block;
 }
 
+.hero figure.portrait img.parks-logo {
+  width: 150px !important;  /* tweak this value */
+  height: auto;
+}
+
 /* Column gap */
 .hero .quarto-layout-row { column-gap: 3rem; }
 
