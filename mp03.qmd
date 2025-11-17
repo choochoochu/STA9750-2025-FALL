@@ -590,7 +590,7 @@ ggplot(shade_density_focus, aes(
   labs(
     title = " Figure 4: District Shade Trees",
     x = "Council District",
-    y = "Shade Trees per Million Sq Feet",
+    y = "Shade Trees per Million Sq Feet"
   )
 ```
 **District 26** has the **lowest density of shade trees** among the comparison districts, only about **50 shade trees per million square feet**, which is below Districts 1, 33, and 38.
@@ -637,7 +637,7 @@ p26 <- ggplot() +
     axis.title = element_blank()
   ) +
   labs(
-    title = "Shade Trees in Council District 26",
+    title = "Figure 5: Shade Trees in District 26",
   )
 
 # District 33 shade map
@@ -662,7 +662,7 @@ p33 <- ggplot() +
     axis.title = element_blank()
   ) +
   labs(
-    title = "Shade Trees in Council District 33",
+    title = "Figure 6: Shade Trees in District 33",
   )
 
 p26 + p33 + plot_layout(widths = c(1, 1))
@@ -688,8 +688,6 @@ stumps_focus <- stumps_by_district |>
   filter(CounDist %in% c(1, 26, 33, 38)) |>
   arrange(CounDist)
 
-invisible(stumps_focus)
-
 # Bar chart
 ggplot(
   stumps_focus,
@@ -707,7 +705,7 @@ ggplot(
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   theme_minimal() +
   labs(
-    title    = "Figure 5: Stumps as a Share of All Tree Sites",
+    title    = "Figure 7: Stumps as a Share of All Tree Sites",
     x        = "Council District",
     y        = "Stumps / Total Sites"
   )
