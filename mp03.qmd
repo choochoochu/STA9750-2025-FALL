@@ -26,7 +26,7 @@ This report explores the NYC TreeMap data set to create visualizations of NYC's 
 
 The following methods were used to obtain and prepare the data for analysis.
 
-### 3.1 Data Acquisition
+### Data Acquisition
 
 NYC District boundaries data was responsibly acquired from the [NYC Department of Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/city-council) since NYC is divided into 51 City Council Districts. 
 
@@ -165,16 +165,15 @@ trees <- get_nyc_tree_points()
 
 The NYC trees were first mapped by creating a `ggplot2` map that superimposes trees as points over the council districts of NYC. Two layers were used to have different spatial elements, one with the council district boundaries and another with points representing each tree.
 
-The district boundary lines were simplified beforehand for plotting purposes because NYC District shape files are very high resolution and can be somewhat slow to plot.
+The district boundary lines were also simplified beforehand for plotting purposes because NYC District shape files are very high resolution and can be somewhat slow to plot.
 
 ```{r}
+# Simplification
 nyc_council_simplified <- nyc_council |>
   mutate(
     geometry = st_simplify(geometry, dTolerance = 20)
   )
-```
 
-```{r}
 ggplot() +
   # Council district boundaries layer (POLYGON)
   geom_sf(
@@ -202,37 +201,41 @@ ggplot() +
 The map of all trees is a bit too dense to be truly legible. The following is an interactive visualization to improve legibility.
 
 ```{r}
-if (!require("plotly")) install.packages("plotly")
-library(plotly)
+if (!require("leaflet")) install.packages("leaflet")
+library(leaflet)
 
-# Use a random sample of trees to keep the interactive map responsive
 set.seed(123)
-trees_sample <- trees |>
-  slice_sample(n = 50000) # adjust n if needed
 
-p_trees_interactive <- ggplot() +
-  # Council district boundaries layer (POLYGON)
-  geom_sf(
+# Sample trees just for performance
+trees_sample <- trees |>
+  slice_sample(n = 20000) 
+
+leaflet(options = leafletOptions(preferCanvas = TRUE)) |>
+  addProviderTiles("CartoDB.Positron") |>
+  
+  # Title (centered)
+  addControl(
+    html = "<h3 style='text-align:center; margin:4px;'>Figure 2: Interactive Map for NYC Tree Locations</h3>",
+    position = "topleft") |>
+
+  # Council district boundaries
+  addPolygons(
     data = nyc_council_simplified,
-    fill = NA,
     color = "black",
-    linewidth = 0.3
-  ) +
-  # Sampled tree points layer (POINT)
-  geom_sf(
+    weight = 1,
+    fillColor = "grey92",
+    fillOpacity = 0.4
+  ) |>
+  
+  # Tree locations as simple points
+  addCircleMarkers(
     data = trees_sample,
-    color = "darkgreen",
-    alpha = 0.2,
-    size = 0.5
-  ) +
-  coord_sf() +
-  theme_minimal() +
-  labs(
-    title   = "Interactive Map: Sample of NYC Trees by Council District",
-    caption = "Source: NYC Open Data & NYC Dept. of Planning"
+    radius = 2,
+    color = "#006400",   # dark green
+    stroke = FALSE,
+    fillOpacity = 0.5
   )
 
-ggplotly(p_trees_interactive)
 ```
 
 ## Overview
@@ -244,11 +247,8 @@ Exploratory data analysis (EDA) was conducted using the `st_join` function which
 trees_with_district <- st_join(
   trees,
   nyc_council,
-  join = st_intersects
-)
-```
+  join = st_intersects)
 
-```{r}
 # Count trees by district
 trees_by_district <- trees_with_district |>
   st_drop_geometry() |>
@@ -487,6 +487,8 @@ district26_shade_summary <- district26_trees |>
 invisible(district26_shade_summary)
 ```
 
+Prior to analysis, a set of broad-canopy “shade” tree species (including maples, plane trees, lindens, oaks, elms, and other large-canopy species) was defined and used to identify shade trees.
+
 ```{r}
 # Visualization of shade trees in District 26
 district26_shade_trees <- district26_trees |>
@@ -539,13 +541,13 @@ invisible(district26_stumps)
 ```
 - Replace the **`{r} district26_stumps$n_stumps` stumps** in District 26 with new plantings.
 
-- The adding of **2,114** new trees in total would increase the **total tree count of `{r} district26_shade_summary$total_trees`** trees by **~14%**. 
+- The altogether addition of **2114 new trees** (additional shade trees + replacement of stumps) would increase the **total tree count of `{r} district26_shade_summary$total_trees`** trees by **~14%**. 
 
 - Prioritize broad-canopy species (London plane, red maple, or other large-crown species) to maximize shade per planting location.
 
 #### Why District 26?
 
-We compared District 26 to three other dense, mixed-use districts with significant waterfront access and heavy foot traffic: District 1 (Lower Manhattan), District 33 (DUMBO/Brooklyn Heights/Williamsburg/Greenpoint), and District 38 (Red Hook/Sunset Park).
+District 26 was compared to three other similarly dense districts with significant waterfront access and heavy foot traffic: District 1 (Lower Manhattan), District 33 (DUMBO/Brooklyn Heights/Williamsburg/Greenpoint), and District 38 (Red Hook/Sunset Park).
 
 ```{r}
 # Comparison of shade trees between district 1, 26, 33, 38
@@ -591,7 +593,7 @@ ggplot(shade_density_focus, aes(
     y = "Shade Trees per Million Sq Feet",
   )
 ```
-District 26 has the lowest density of shade trees among the comparison districts, only about 50 shade trees per million square feet, which is below Districts 1, 33, and 38.
+**District 26** has the **lowest density of shade trees** among the comparison districts, only about **50 shade trees per million square feet**, which is below Districts 1, 33, and 38.
 
 The following visualization illustrates the contrast in shade tree coverage between Districts 26 and 33, neighboring areas that differ significantly in their shade-tree-to-area ratios.
 
@@ -610,9 +612,9 @@ district33_shade_trees <- district33_trees |>
 # District 33 area only
 district33_boundary <- nyc_council_simplified |>
   filter(CounDist == 33)
-```
 
-```{r, layout-ncol: 2}
+library(patchwork)
+
 # District 26 shade map
 p26 <- ggplot() +
   geom_sf(
@@ -636,7 +638,6 @@ p26 <- ggplot() +
   ) +
   labs(
     title = "Shade Trees in Council District 26",
-    caption = "Source: NYC Open Data & NYC Dept. of Planning"
   )
 
 # District 33 shade map
@@ -662,13 +663,11 @@ p33 <- ggplot() +
   ) +
   labs(
     title = "Shade Trees in Council District 33",
-    caption = "Source: NYC Open Data & NYC Dept. of Planning"
   )
 
-p26
-p33
+p26 + p33 + plot_layout(widths = c(1, 1))
 ```
-District 26 also has a the highest ratio of stumps to total tree sites. In direct comparison, it has significantly higher ratio of stumps to total tree sites than District 1 and slightly higher than District 33 and 38, indicating unrealized planting opportunities.
+**District 26** also has the **highest ratio of stumps to total tree sites**. In direct comparison, it has significantly higher ratio of stumps to total tree sites than District 1 and slightly higher than District 33 and 38, indicating unrealized planting opportunities.
 
 ```{r}
 # Computes stump ratio per district
