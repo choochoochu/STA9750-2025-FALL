@@ -644,7 +644,7 @@ eda_admin |>
 
 ### Histogram of CES revisions pre-Biden
 
-To visualize the overall behavior of CES revisions across the full historical period, I formed a histogram of all monthly revisions from 1979 through 2025. This figure displays how often different revision sizes occur and highlights the strong concentration of revisions around zero, with relatively few large adjustments in either direction.
+To visualize the overall behavior of CES revisions across the full historical period, I formed a histogram of all monthly revisions from 1979 through 2025. This figure displays how often different revision sizes occur and highlights the strong concentration of revisions around zero, with relatively few large adjustments in either direction. This code creates the histogram in an object, but will not print until later on in the project.
 
 ```{r}
 # Creates a histogram showing the overall distribution of CES revisions.
@@ -664,7 +664,7 @@ ces_hist_plot <- ces_merged |>
 
 ### Timeline of Revisions Pre-Biden
 
-Stepping back from any single year or administration, this figure traces the month-by-month pattern of CES revisions across the full sample. Each dot represents a monthly revision, with blue points indicating upward revisions and red points indicating downward ones, while a thin grey line connects the observations over time. The dashed horizontal line at zero separates positive from negative revisions. This visualization highlights both the frequency and timing of upward versus downward adjustments, making it easier to see whether long stretches of the historical record are dominated by one direction of revisions.
+Stepping back from any single year or administration, this figure traces the month-by-month pattern of CES revisions across the full sample. Each dot represents a monthly revision, with blue points indicating upward revisions and red points indicating downward ones, while a thin grey line connects the observations over time. The dashed horizontal line at zero separates positive from negative revisions. This visualization highlights both the frequency and timing of upward versus downward adjustments, making it easier to see whether long stretches of the historical record are dominated by one direction of revisions. This code creates the visualization in an object, but will not print until later on in the project.
 
 ```{r}
 # Creates a time-series plot of CES revisions, colored by direction.
