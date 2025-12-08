@@ -410,7 +410,7 @@ jul_dec_2024_long |>
   )
 ```
 
-### Month-by-Month Revisions Visualization of Biden's Term
+### Month-by-Month Revisions of Biden's Term (Figure 1)
 
 I next visualized the month-by-month revisions during Biden’s term. For each employment report, I plotted a vertical line from zero to the size of the revision, coloring upward revisions in blue and downward revisions in red. This “lollipop” plot makes it easy to see not only the sign of each revision, but also how their magnitude and frequency evolve over time, highlighting periods with unusually large adjustments to the initial CES estimates. This code creates the plot in an object, but will not print since it will be used later on in the project.
 
@@ -442,7 +442,7 @@ ces_biden_plot <- ces_biden |>
   theme_minimal()
 ```
 
-### Last Six-Month Revisions Visualization of Biden's Term 
+### Last Six-Month Revisions of Biden's Term  (Figure 2)
 
 To put these late-2024 revisions in perspective, I plotted each month’s CES revision as a share of the total employment level. For July through December 2024, I connected the monthly values with a line and use colored points (blue for upward revisions and red for downward revisions) to indicate the direction of each adjustment. This code also creates the plot in an object, but will not print since it will be used later on in the project.
 
@@ -642,7 +642,7 @@ eda_admin |>
   )
 ```
 
-### Histogram of CES revisions pre-Biden
+### Histogram of CES revisions Pre-Biden (Figure 3)
 
 To visualize the overall behavior of CES revisions across the full historical period, I formed a histogram of all monthly revisions from 1979 through 2025. This figure displays how often different revision sizes occur and highlights the strong concentration of revisions around zero, with relatively few large adjustments in either direction. This code creates the histogram in an object, but will not print until later on in the project.
 
@@ -654,7 +654,7 @@ ces_hist_plot <- ces_merged |>
   geom_histogram(binwidth = 25, fill = "steelblue", color = "white") +
   # Titles and axis labels for interpretability.
   labs(
-    title = "Distribution of CES Revisions, 1979–2025",
+    title = "Figure 3: Distribution of CES Revisions, 1979–2025",
     x = "Revision (Final - First)",
     y = "Count"
   ) +
@@ -662,7 +662,7 @@ ces_hist_plot <- ces_merged |>
   theme_minimal()
 ```
 
-### Timeline of Revisions Pre-Biden
+### Timeline of Revisions Pre-Biden (Figure 4)
 
 Stepping back from any single year or administration, this figure traces the month-by-month pattern of CES revisions across the full sample. Each dot represents a monthly revision, with blue points indicating upward revisions and red points indicating downward ones, while a thin grey line connects the observations over time. The dashed horizontal line at zero separates positive from negative revisions. This visualization highlights both the frequency and timing of upward versus downward adjustments, making it easier to see whether long stretches of the historical record are dominated by one direction of revisions. This code creates the visualization in an object, but will not print until later on in the project.
 
@@ -686,10 +686,9 @@ ces_revisions_time_plot <- ces_merged |>
   ) +
   # Titles and axis labels.
   labs(
-    title    = "CES Revisions Over Time",
-    subtitle = "Monthly revisions to total nonfarm payrolls",
+    title    = "Figure 4: CES Revisions Over Time",
     x        = "Date",
-    y        = "Revision (thousands of jobs)",
+    y        = "Revision (Thousands of Jobs)",
     color    = "Direction"
   ) +
   # Clean, minimal theme for readability.
@@ -987,6 +986,6 @@ To check the broader claim that all pre-Biden years had more downward revisions,
 
 Across Trump’s first term, the larger pre-Biden period, and the full historical record, downward CES revisions occur at normal rates and are balanced by upward adjustments. The data do not support the claim that downward revisions were unusually common prior to the Biden administration.
 
-## 6. Conclusion
+## Conclusion
 
 After checking both left and right wing media anchor's claims, the data shows that both claims are unsupported. Revisions have followed a stable, historically typical pattern across administrations, and the dramatic interpretations offered by both anchors are not factual.
