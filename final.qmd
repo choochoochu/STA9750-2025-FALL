@@ -1,0 +1,1084 @@
+---
+title: "When 311 Complaints Stop Measuring NYC Rats"
+subtitle: "Identifying Bias in Spatial Scale Using Statistical Analysis"
+author: "Sojung Chu"
+date: 2025-12-18
+date-format: "MMMM D, YYYY"
+format:
+  html:
+    code-tools: true
+    code-fold: true
+    toc: true
+    toc-location: right
+    number-sections: false
+    toc-depth: 2
+  # server: shiny
+execute:
+  eval: false
+  echo: true
+  warning: false
+  message: false
+bibliography: individual_report.bib
+csl: apa.csl
+---
+
+# Introduction
+
+This report is my individual component of a group final course project with Shreya, Rachel, David, Wing, and Geraldine. Initially, we wanted to solve the case of the pesky rats that rule over New York City (NYC) by finding a correlation between the 311 rodent complaints, which are often used as markers for where the rats are located, and other factors. While much of the existing research focuses on identifying the factors that lead to rat infestations, our study instead examined whether 311 rodent complaints are an accurate proxy for rat prevalence. We investigated whether reliance on 311 data introduces bias.
+
+My specific analysis addresses whether spatial aggregation causes rodent complaints to reflect reporting behavior rather than rat activity. In 2017, NYC began designating [Rat Mitigation Zones](https://codelibrary.amlegal.com/codes/newyorkcity/latest/NYCrules/0-0-0-138869), with one criterion being the number of rat-related 311 complaints at the community district level. A difference-in-differences approach was used to compare 311 rodent complaints before and after a rodent inspection, with a passed inspection treated as the event at time zero. Because a passed inspection signals acceptable rat conditions, we expect complaints to decline within the spatial unit after a passed inspection, provided the unit accurately captures rodent activity. This expectation was evaluated at three spatial scales: a local 150‑meter radius, Neighborhood Tabulation Areas (NTA) to maintain consistency with my groupmate’s analysis, and Community Districts to align with how NYC aggregates 311 rat complaints.
+
+The technical details of the analysis, including data acquisition, data cleaning, exploratory data analysis, and model estimation, are documented in this report. Reproducible code and detailed explanations illustrating how difference-in-differences models were developed and evaluated using NYC data are also included. All analyses were conducted in R through associated packages.
+
+# Methodology
+
+The following methods were used to obtain four datasets to prepare for analysis.
+
+## Data Acquisition
+
+Data was downloaded responsibly through functions that only download the required data if it does not already exist. Before this, the process starts by loading necessary packages through a helper function that installs and loads R packages used throughout this report. 
+
+```{r}
+#' Install and load an R package if it is not already available.
+#'
+#' @param pkg A character string specifying the name of the package to load.
+#' @return Invisibly returns TRUE if the package is successfully loaded.
+#' @examples
+#' load_package("tidyr")
+
+load_package <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg)
+  }
+  suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+}
+
+PACKAGES <- c("httr2", "jsonlite", "dplyr", "sf", "purrr", "tidyr",
+              "lubridate", "readr", "tidyverse", "nngeo", "ggplot2", "fixest", "nngeo")
+
+lapply(PACKAGES, load_package)
+```
+
+### Rodent Inspections
+
+The NYC Rat Inspection dataset contains records of rodent inspections conducted across the five boroughs in response to public complaints and routine monitoring. This dataset is compiled and published by the New York City Department of Health and Mental Hygiene (DOHMH) and is publicly available through [NYC Open Data](https://data.cityofnewyork.us/Health/Rodent-Inspection/p937-wjvj/about_data). The dataset contains approximately 2.9 million records, with a small number of inspections dated between 1918 and 1971 and two records from 2000, but these early outliers were removed. The majority of observations begin on January 1, 2001, and extend through December 8, 2025. Each record represents an individual inspection and includes information such as the inspection date, inspection outcome, and location details. Some records list inspection dates in 2045. These future-dated entries were identified as data errors and were removed. 
+
+```{r}
+#' Download and cache NYC rat inspection records from NYC Open Data.
+#'
+#' This chunk defines a helper function that retrieves rat inspection records from the
+#' NYC Open Data API and stores a local cached copy for reuse in future runs. Because
+#' the dataset can exceed single-request limits, the function downloads the data in
+#' paginated batches using `$limit` and `$offset`, combines the batches into a single
+#' table, and saves the result as a CSV in the project data directory. If a cached file
+#' already exists and `refresh = FALSE`, the function reads the local CSV instead of
+#' re-downloading the data.
+#'
+#' @return A tibble containing the full set of rat inspection records returned by the
+#' NYC Open Data endpoint.
+#' @examples
+#' rat_inspection <- load_rat_inspection()
+
+#| code-summary: "Code used to download data set"
+
+# Ensure a local directory exists for storing cached API downloads.
+# Caching downloaded files allows the analysis to be rerun without
+# repeatedly querying the NYC Open Data API.
+
+if (!dir.exists("data/final")) {
+  dir.create("data/final", showWarnings = FALSE, recursive = TRUE)
+}
+
+load_rat_inspection <- function(refresh = FALSE) {
+
+  # Define a local cache path so the dataset can be reused across runs.
+  # Caching avoids repeated API calls and makes the workflow reproducible.
+  target_dir <- "data/final"
+  f_name     <- "rat_inspection.csv"
+  file_path  <- file.path(target_dir, f_name)
+
+  # Create the cache directory if it does not already exist.
+  if (!dir.exists(target_dir)) {
+    dir.create(target_dir, recursive = TRUE)
+  }
+
+  # If no cached file is available, or if a refresh is requested, download the data.
+  # Otherwise, read the previously saved file from disk.
+  if (!file.exists(file_path) || refresh) {
+    message("Downloading full rat inspection dataset from NYC Open Data...")
+
+    # Specify the NYC Open Data endpoint used to retrieve the inspection records.
+    base_url <- "https://data.cityofnewyork.us/resource/p937-wjvj.json"
+
+    # The Socrata API limits the number of rows returned per request, so the full
+    # dataset is retrieved in repeated chunks using limit and offset parameters.
+    chunk_limit <- 50000L
+
+    all_chunks <- list()
+    offset     <- 0L
+    chunk_id   <- 1L
+
+    repeat {
+      message("Requesting rows with offset = ", offset, " ...")
+
+      resp <- request(base_url) |>
+        req_url_query(
+          "$limit"  = chunk_limit,
+          "$offset" = offset
+        ) |>
+        req_perform()
+
+      # Stop execution if the API request fails.
+      resp_check_status(resp)
+
+      # Parse the response into a tabular object that can be combined across chunks.
+      # Flattening is used to bring nested fields into regular columns when present.
+      raw_json <- resp_body_string(resp)
+      dat_list <- fromJSON(raw_json, flatten = TRUE)
+
+      chunk_tbl <- dat_list |>
+        as_tibble()
+
+      n_chunk <- nrow(chunk_tbl)
+      message("Retrieved ", n_chunk, " rows in chunk ", chunk_id, ".")
+
+      # A zero-row response indicates the end of the export.
+      if (n_chunk == 0) {
+        message("No more rows returned. Reached end of dataset.")
+        break
+      }
+
+      all_chunks[[chunk_id]] <- chunk_tbl
+
+      # If the chunk is smaller than the request limit, assume this is the final page.
+      if (n_chunk < chunk_limit) {
+        message("Final chunk returned fewer than ", chunk_limit, " rows.")
+        break
+      }
+
+      # Otherwise, advance the offset and request the next batch.
+      offset   <- offset + n_chunk
+      chunk_id <- chunk_id + 1L
+    }
+
+    # Combine all retrieved chunks into a single table.
+    rat_inspection <- bind_rows(all_chunks)
+    message("Total rows downloaded: ", nrow(rat_inspection))
+
+    # Save the assembled dataset so it can load it from disk.
+    write_csv(rat_inspection, file_path)
+
+  } else {
+    message("Reading existing rat inspection data from CSV...")
+    rat_inspection <- read_csv(file_path, show_col_types = FALSE)
+  }
+
+  rat_inspection
+}
+
+rat_inspection <- load_rat_inspection()
+
+# Filter out inspection records with implausible dates that likely reflect data issues.
+# This removes a small number of records dated 1918–1971, the two records from 2000,
+# and outliers dated in 2045.
+
+rat_inspection <- rat_inspection |>
+  mutate(inspection_date = as_date(inspection_date)) |>
+  filter(!is.na(inspection_date)) |>
+  filter(year(inspection_date) >= 1972,
+         year(inspection_date) <= 2024) |>
+  filter(year(inspection_date) != 2000)
+```
+
+### 311 Rodent Complaints
+
+The New York City 311 Rodent Complaints data set contains records of non-emergency service requests submitted by residents reporting rodent sightings and related issues. This data set is compiled and made publicly available through the NYC Open Data portal and includes complaints submitted to the [NYC 311 service system](https://data.cityofnewyork.us/Social-Services/311-Rodent-Complaints/cvf2-zn8s/about_data). The data set contains approximately 492,000 records and spans from January 2010 through December 2025. Each record represents an individual complaint and includes information such as the date the complaint was submitted, complaint type, location details, and additional service request attributes. The 311 Rodent Complaints data set provides a comprehensive view of public reporting of rodent activity across New York City and is particularly valuable for researchers and urban planners studying urban wildlife interactions, public health concerns, and neighborhood-level patterns in rodent reporting behavior.
+
+```{r}
+#' Download and assemble NYC 311 rodent complaint records from NYC Open Data.
+#'
+#' This chunk prepares a local data directory and defines a helper function that
+#' retrieves NYC 311 rodent complaint data from the NYC Open Data API. Because the
+#' dataset can exceed single-request limits, the function downloads the data in
+#' paginated batches using `$limit` and `$offset`. Each batch is cached locally as
+#' a GeoJSON file to avoid repeated downloads and to make the workflow reproducible.
+#' The cached batches are then read with `st_read()` and combined into a single dataset.
+#'
+#' @return An `sf` object containing the full set of rodent complaint records returned
+#' by the NYC Open Data endpoint.
+#' @examples
+#' rodent_complaints <- get_rodent_complaints()
+
+#| code-summary: "Code used to download data set"
+
+# Define a helper function to download and assemble NYC 311 rodent complaint data.
+# The function retrieves the data in batches to accommodate API request limits,
+# caches each batch locally as a GeoJSON file, and combines all batches into
+# a single sf object for downstream analysis.
+
+get_rodent_complaints <- function() {
+
+  # Define the NYC Open Data API endpoint for 311 rodent complaints.
+  # The data are served as GeoJSON and must be retrieved in multiple requests.
+  ENDPOINT <- "https://data.cityofnewyork.us/resource/cvf2-zn8s.geojson"
+
+  BATCH_SIZE    <- 50000
+  OFFSET        <- 0
+  END_OF_EXPORT <- FALSE
+  FILE_INDEX    <- 1
+  ALL_DATA      <- list()
+
+  # Continue requesting data until the API returns fewer rows than the batch size,
+  # which signals that the end of the dataset has been reached.
+  while (!END_OF_EXPORT) {
+
+    # Construct a stable filename for the current batch so that it can be reused
+    # across multiple runs of the analysis.
+    file_name <- sprintf("rodent_311_%04d.geojson", FILE_INDEX)
+    file_path <- file.path("data/final", file_name)
+
+    # Download the current batch only if it has not already been saved locally.
+    # This avoids unnecessary API calls and improves reproducibility.
+    if (!file.exists(file_path)) {
+
+      req <- request(ENDPOINT) |>
+        req_url_query(
+          `$limit`  = BATCH_SIZE,
+          `$offset` = OFFSET
+        )
+
+      resp <- req_perform(req)
+      resp_check_status(resp)
+
+      resp_body_raw(resp) |>
+        writeBin(con = file_path)
+    }
+
+    # Read the cached GeoJSON batch into an sf object.
+    batch_data <- st_read(file_path, quiet = TRUE)
+
+    # Append the current batch to the list of all downloaded data.
+    ALL_DATA <- c(ALL_DATA, list(batch_data))
+
+    # If the number of returned rows is smaller than the requested batch size,
+    # the final page has been reached and the loop can terminate.
+    if (NROW(batch_data) != BATCH_SIZE) {
+      END_OF_EXPORT <- TRUE
+    } else {
+      OFFSET     <- OFFSET + BATCH_SIZE
+      FILE_INDEX <- FILE_INDEX + 1
+    }
+  }
+
+  # Combine all downloaded batches into a single sf object.
+  ALL_DATA <- bind_rows(ALL_DATA)
+
+  return(ALL_DATA)
+}
+
+# Execute the data download and combination step and store the result.
+rodent_complaints <- get_rodent_complaints()
+```
+
+### Neighborhood Tabulation Areas (NTA)
+
+The 2020 [New York City Neighborhood Tabulation Area](https://www.nyc.gov/content/planning/pages/resources/datasets/neighborhood-tabulation) (NTA) boundary polygons were downloaded from an ArcGIS REST service provided by the City of New York. These polygons define standardized neighborhood units commonly used for demographic and public health analyses. The boundary file was cached locally to ensure reproducibility and loaded as a spatial object, then transformed to the EPSG:4326 coordinate reference system to align with the rodent inspection and 311 complaint data. A lookup table mapping NTA names to their official NTA codes was also created to facilitate consistent joins across datasets.
+
+```{r}
+#' Download and load NYC Neighborhood Tabulation Area (NTA) boundary polygons.
+#'
+#' This function downloads the 2020 Neighborhood Tabulation Area boundary polygons from an
+#' ArcGIS REST endpoint and caches the GeoJSON locally for reuse. If the file already exists
+#' locally, it is read from disk instead of being downloaded again.
+#' The boundaries are loaded as an `sf` object and transformed to EPSG:4326 to align with
+#' the coordinate reference system used by the rodent datasets.
+#'
+#' @param nta_url URL of the ArcGIS GeoJSON endpoint (default provided).
+#' @param nta_path Local filepath used to cache the downloaded GeoJSON.
+#' @return An `sf` object containing NYC Neighborhood Tabulation Area polygon geometries
+#'   and associated attributes.
+#' @importFrom httr2 request req_perform resp_check_status resp_body_raw
+#' @importFrom sf st_read st_transform
+#' @export
+ 
+#| code-summary: "Code used to download spatial data"
+
+load_nta_boundaries <- function(
+  nta_url  = "https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/NYC_Neighborhood_Tabulation_Areas_2020/FeatureServer/0/query?where=1=1&outFields=*&outSR=4326&f=pgeojson",
+  nta_path = "data/final/nta_2020.geojson",
+  refresh  = FALSE
+) {
+  # Ensure the output directory exists before attempting to write cached files.
+  out_dir <- dirname(nta_path)
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+
+  # Download the file only if it is not already cached locally.
+  # This keeps the workflow reproducible and avoids repeated requests to the server.
+  if (!file.exists(nta_path)) {
+    resp <- request(nta_url) |>
+      req_perform()
+
+    resp_check_status(resp)
+
+    resp_body_raw(resp) |>
+      writeBin(con = nta_path)
+  }
+
+  # Read the cached NTA boundaries as an sf object and standardize the CRS.
+  # Using a consistent CRS ensures spatial joins and distance calculations work as expected.
+  nta <- st_read(nta_path, quiet = TRUE) |>
+    st_transform(4326)
+
+  return(nta)
+}
+
+nta <- load_nta_boundaries()
+```
+
+### Community Districts
+
+The New York City [Community District](https://www.nyc.gov/content/planning/pages/resources/datasets/community-districts) boundary polygons were downloaded from the NYC Department of City Planning’s dataset, using an ArcGIS REST endpoint that provides the boundaries in GeoJSON format. The boundary file was cached locally to support reproducible analyses and to avoid repeated requests to the hosting server. The polygons were then loaded as an sf object and transformed to EPSG:4326 to ensure compatibility with the coordinate reference system used by the rodent inspection and 311 complaint datasets. For spatial joins, the Community District identifier was retained along with the district geometries.
+
+```{r}
+#' Download and load NYC Community District boundary polygons.
+#'
+#' This function downloads NYC Department of City Planning Community District boundaries
+#' from an ArcGIS REST endpoint and caches the GeoJSON locally for reuse. If the file
+#' already exists locally, it is read from disk instead of being downloaded again. 
+#' The boundaries are loaded as an `sf` object and transformed to to ensure compatibility
+#' with other datasets used in the analysis.
+#'
+#' @param cd_url URL of the ArcGIS GeoJSON endpoint (default provided).
+#' @param cd_path Local filepath used to cache the downloaded GeoJSON
+#'   (default "data/final/community_districts.geojson").
+#' @return An `sf` object containing Community District polygons. The returned object
+#'   includes the Community District identifier (`BoroCD`) and geometry.
+#' @importFrom httr2 request req_perform resp_check_status resp_body_raw
+#' @importFrom sf st_read st_transform
+#' @importFrom dplyr select
+#' @export
+
+#| code-summary: "Code used to download spatial data"
+
+load_cd_shapefiles <- function(
+  cd_url  = "https://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/NYC_Community_Districts/FeatureServer/0/query?where=1=1&outFields=*&outSR=4326&f=pgeojson",
+  cd_path = "data/final/community_districts.geojson",
+  refresh = FALSE
+) {
+  # Ensure the output directory exists before attempting to write cached files.
+  out_dir <- dirname(cd_path)
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+
+  # Download the GeoJSON only when needed to minimize repeated server requests.
+  if (refresh || !file.exists(cd_path)) {
+    resp <- request(cd_url) |>
+      req_perform()
+
+    resp_check_status(resp)
+
+    resp_body_raw(resp) |>
+      writeBin(con = cd_path)
+  }
+
+  # Read the cached GeoJSON and standardize to EPSG:4326 for spatial compatibility.
+  cd <- st_read(cd_path, quiet = TRUE) |>
+    st_transform(4326)
+
+  # Keep only the Community District identifier and geometry used for joins.
+  cd <- cd |>
+    select(BoroCD, geometry)
+
+  return(cd)
+}
+
+cd_keep <- load_cd_shapefiles()
+```
+
+## Data Integration
+
+Since the rodent inspection and 311 complaint data are recorded at the point level using latitude and longitude coordinates, I standardized the geographic unit of analysis across the 311 rodent complaint and rodent inspection datasets. Point locations were converted to spatial features and spatially joined to 2020 NTA boundary polygons using a point-in-polygon approach, assigning each record to an NTA. 
+
+```{r}
+# Convert rodent complaint coordinates into sf point features.
+
+# Extract longitude and latitude as numeric values and remove records without valid coordinates.
+rat_coords <- rodent_complaints |>
+  mutate(
+    lon = as.numeric(longitude),
+    lat = as.numeric(latitude)
+  ) |>
+  drop_na(lon, lat)
+
+# Convert the complaint records into an sf object so spatial operations can be applied.
+rats_sf <- st_as_sf(
+  rat_coords,
+  coords = c("lon", "lat"),
+  crs = 4326
+)
+
+# Load the NTA polygon boundaries and make sure they are in the same CRS as the complaint points.
+nta <- st_read("data/final/nta_2020.geojson") |>
+  st_transform(4326)
+
+# Create a lookup table mapping NTA names to official NTA codes for later joins.
+nta_lookup <- nta |>
+  st_drop_geometry() |>
+  select(
+    nta = NTAName,       
+    nta_code = NTA2020
+  ) |>
+  distinct()
+
+# Spatial join NTA attributes onto each complaint point.
+rat311_with_nta <- st_join(
+  rats_sf,
+  nta[, c("NTA2020", "NTAName", "BoroName")]
+)
+
+# Drop geometry to work with a regular tabular data frame while keeping the NTA attributes.
+rat311_with_nta_df <- rat311_with_nta |>
+  st_drop_geometry()
+```
+Community district polygons were then added in a similar way.
+
+```{r}
+# Spatial join: assign each 311 rat point to a Community District (BoroCD)
+rat311_with_cd <- st_join(rats_sf, cd_keep)
+
+# Drop geometry for a regular tibble
+rat311_with_cd_df <- rat311_with_cd |>
+  st_drop_geometry()
+
+# Drop geometry for a regular tabular data frame
+rat311_with_cd_df <- rat311_with_cd |>
+  st_drop_geometry()
+
+# Add Community District (BoroCD) to any NYC dataset with lon/lat columns
+# Keeps pipeline modular: load raw data first, enrich later, without modifying originals.
+
+add_cd_to_points <- function(df,
+                             lon_col = "longitude",
+                             lat_col = "latitude",
+                             cd_path = "data/final/community_districts.geojson") {
+  # Read/prepare Community District polygons (lightweight)
+  cd_keep <- st_read(cd_path, quiet = TRUE) |>
+    st_transform(4326) |>
+    select(BoroCD, geometry)
+
+  # Extract coords + drop missing
+  df_coords <- df |>
+    mutate(
+      lon = as.numeric(.data[[lon_col]]),
+      lat = as.numeric(.data[[lat_col]])
+    ) |>
+    drop_na(lon, lat)
+
+  # Convert to sf points
+  df_sf <- st_as_sf(df_coords, coords = c("lon", "lat"), crs = 4326)
+
+  # Spatial join + return as regular tibble (no geometry column)
+  st_join(df_sf, cd_keep, left = TRUE) |>
+    st_drop_geometry()
+}
+
+rat_inspection_with_cd_df <- add_cd_to_points(rat_inspection)
+
+rat311_with_cd_df <- add_cd_to_points(rodent_complaints)
+```
+
+## Data Construction
+
+To prepare for difference-in-differences, 
+
+Created balanced panel around treatment.
+
+### 150 Meter Radius
+
+To support the distance-based difference-in-differences analysis, I integrated 311 rodent complaint records with PASS inspection locations using a spatial proximity approach. Both datasets were converted to spatial point features and projected to a common coordinate reference system that preserves distance in meters. This enabled the identification of complaint locations occurring within a fixed radius of inspection sites and allowed spatial relationships to be incorporated directly into the analytical design. The 311 rodent complaint data were joined to the PASS inspection data using a distance-based spatial linkage. Each complaint was assigned the identifier of its nearest PASS inspection location within a fixed radius, effectively merging the two datasets at the event level prior to aggregation.
+
+I also wanted to try my analysis by building local neighborhoods around passed inspections at 150m instead since NTAs are too coarse and could have washed out the effect.
+
+```{r}
+#' Construct distance-based difference-in-differences panels around PASS inspections.
+#'
+#' To support the distance-based difference-in-differences analysis, this chunk integrates
+#' 311 rodent complaint records with PASS inspection locations using a spatial proximity
+#' approach. Both datasets are converted to spatial point features and projected to a
+#' coordinate reference system that preserves distances in meters. This allows complaint
+#' activity to be measured within a fixed radius of each inspection site and enables
+#' spatial proximity to be incorporated directly into the DiD design.
+#'
+#' The resulting data structure supports neighborhood-by-month panels with zero-call
+#' months included and is used to estimate Poisson DiD models with neighborhood and
+#' month fixed effects.
+
+# Specify the radius, in meters, used to define complaints occurring near a PASS inspection.
+# This value determines the spatial scale at which inspection effects are evaluated.
+
+# -----------------------------
+# WEEK VERSION (separate names) + recommended filters
+# -----------------------------
+
+radius_m_w   <- 150
+window_w_w   <- 26
+week_start_w <- 1   # 1 = Monday, 7 = Sunday
+
+# 1) 311 calls -> sf points with week
+calls_sf_w <- rat311_with_nta_df %>%
+  filter(!is.na(longitude), !is.na(latitude)) %>%
+  mutate(
+    created_date_w = as.Date(created_date),
+    call_week_w    = floor_date(created_date_w, "week", week_start = week_start_w)
+  ) %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>%
+  st_transform(3857)
+
+# 2) Inspections -> sf points with week (PASS centers)
+insp_sf_w <- rat_inspection %>%
+  filter(!is.na(longitude), !is.na(latitude)) %>%
+  mutate(
+    inspection_date_w = ymd(inspection_date),
+    inspection_week_w = floor_date(inspection_date_w, "week", week_start = week_start_w)
+  ) %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>%
+  st_transform(3857)
+
+pass_sf_w <- insp_sf_w %>%
+  filter(result == "Passed") %>%
+  arrange(inspection_week_w) %>%
+  mutate(
+    neigh_id_w        = row_number(),
+    first_pass_week_w = inspection_week_w
+  )
+
+# 3) Nearest PASS for each call within radius
+nn_out_w <- st_nn(
+  calls_sf_w, pass_sf_w,
+  k = 1, maxdist = radius_m_w,
+  returnDist = TRUE,
+  progress = FALSE
+)
+
+calls_sf_w <- calls_sf_w %>%
+  mutate(
+    pass_row_w = map_int(nn_out_w$nn, ~ if (length(.x) == 0) NA_integer_ else .x[1]),
+    dist_to_pass_m_w = map_dbl(nn_out_w$dist, ~ if (length(.x) == 0) NA_real_ else .x[1]),
+    neigh_id_w = if_else(is.na(pass_row_w), NA_integer_, pass_sf_w$neigh_id_w[pass_row_w])
+  ) %>%
+  select(-pass_row_w)
+
+# 4) Keep only calls within chosen radius of a PASS
+calls_near_w <- calls_sf_w %>%
+  filter(!is.na(dist_to_pass_m_w) & dist_to_pass_m_w <= radius_m_w)
+
+# 5) Aggregate to neighborhood × week: count calls
+calls_neigh_week_w <- calls_near_w %>%
+  st_drop_geometry() %>%
+  group_by(neigh_id_w, call_week_w) %>%
+  summarise(calls_w = n(), .groups = "drop")
+
+# PASS event info per neigh_id_w
+pass_info_w <- pass_sf_w %>%
+  st_drop_geometry() %>%
+  select(neigh_id_w, first_pass_week_w)
+
+# 6) FULL PANEL: all neighborhoods × all weeks (fill zeros) + event-time vars
+all_weeks_w <- seq(
+  from = min(calls_neigh_week_w$call_week_w, na.rm = TRUE),
+  to   = max(calls_neigh_week_w$call_week_w, na.rm = TRUE),
+  by   = "week"
+)
+
+# Only neighborhoods that actually get used (nearest for >=1 call within radius)
+all_neigh_w <- sort(unique(calls_near_w$neigh_id_w))
+
+full_neigh_panel_w <- expand.grid(
+  neigh_id_w  = all_neigh_w,
+  call_week_w = all_weeks_w
+)
+
+panel_neigh_w <- full_neigh_panel_w %>%
+  left_join(calls_neigh_week_w, by = c("neigh_id_w", "call_week_w")) %>%
+  mutate(calls_w = replace_na(calls_w, 0L)) %>%
+  left_join(pass_info_w, by = "neigh_id_w") %>%
+  mutate(
+    rel_week_w  = as.integer((call_week_w - first_pass_week_w) / 7),
+    post_pass_w = as.integer(rel_week_w >= 0)
+  ) %>%
+  filter(rel_week_w >= -window_w_w, rel_week_w <= window_w_w)
+
+# 7) Recommended filters (balanced window + drop all-zero centers)
+panel_neigh_w <- panel_neigh_w %>%
+  group_by(neigh_id_w) %>%
+  mutate(
+    n_pre_w        = sum(rel_week_w < 0),
+    n_post_w       = sum(rel_week_w >= 0),
+    total_calls_w  = sum(calls_w, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(
+    n_pre_w >= 1,
+    n_post_w >= 1,
+    total_calls_w > 0
+  ) %>%
+  select(-total_calls_w)
+```
+
+### NTA Level
+
+```{r}
+# Aggregate 311 calls weekly so each NTA has number of calls per week
+library(dplyr)
+library(lubridate)
+library(tidyr)
+
+# 1) Weekly calls by NTA x calendar week (same as you have)
+calls_weekly <- rat311_with_nta_df %>%
+  mutate(
+    week    = floor_date(created_date, "week", week_start = 1),
+    area_id = NTA2020
+  ) %>%
+  filter(!is.na(area_id)) %>%
+  group_by(area_id, week) %>%
+  summarise(calls = n(), .groups = "drop")
+
+# 2) First PASS week per NTA (same logic, but keep pass_week + treat_start_week)
+pass_times <- rat_inspection %>%
+  mutate(area_id = nta_code, pass_date = inspection_date) %>%
+  filter(!is.na(area_id), result == "Passed", !is.na(pass_date)) %>%
+  group_by(area_id) %>%
+  summarise(
+    first_pass_date   = min(pass_date),
+    pass_week         = floor_date(first_pass_date, "week", week_start = 1),
+    treat_start_week  = pass_week + weeks(1),
+    .groups = "drop"
+  )
+
+# 3) Build event-centered grid: NTA x rel_week
+event_grid <- expand.grid(
+  area_id  = unique(pass_times$area_id),
+  rel_week = -8:8
+)
+
+# 4) Map each rel_week to the corresponding calendar week for that NTA
+panel_event <- event_grid %>%
+  left_join(pass_times, by = "area_id") %>%
+  mutate(
+    week = treat_start_week + weeks(rel_week),
+    post_pass = ifelse(rel_week >= 0, 1L, 0L)
+  ) %>%
+  left_join(calls_weekly, by = c("area_id", "week")) %>%
+  mutate(calls = replace_na(calls, 0L))
+
+# Optional Sanity checks
+# nrow(panel)
+# nlevels(panel$area_factor); nlevels(panel$month_factor)
+# table(panel$post_pass)
+```
+
+### Community District Level
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(fixest)
+
+window_w <- 8
+
+############################################
+# 1) Weekly calls by CD x calendar week
+############################################
+calls_weekly_cd <- rat311_with_cd_df %>%
+  mutate(
+    week_cd  = floor_date(created_date, "week", week_start = 1),
+    cd_id    = as.character(BoroCD)
+  ) %>%
+  filter(!is.na(cd_id), !is.na(week_cd)) %>%
+  group_by(cd_id, week_cd) %>%
+  summarise(calls_cd = n(), .groups = "drop")
+
+############################################
+# 2) First PASS week by CD + treat_start_week
+############################################
+pass_times_cd <- rat_inspection_with_cd_df %>%
+  mutate(
+    cd_id     = as.character(BoroCD),
+    pass_date = inspection_date
+  ) %>%
+  filter(!is.na(cd_id), result == "Passed", !is.na(pass_date)) %>%
+  group_by(cd_id) %>%
+  summarise(
+    first_pass_date_cd  = min(pass_date),
+    pass_week_cd        = floor_date(first_pass_date_cd, "week", week_start = 1),
+    treat_start_week_cd = pass_week_cd + weeks(1),
+    .groups = "drop"
+  )
+
+############################################
+# 3) Event-centered grid: CD x rel_week
+############################################
+event_grid_cd <- expand.grid(
+  cd_id      = unique(pass_times_cd$cd_id),
+  rel_week_cd = -window_w:window_w
+)
+
+############################################
+# 4) Map rel_week -> calendar week, join calls, fill zeros
+############################################
+panel_event_cd <- event_grid_cd %>%
+  left_join(pass_times_cd, by = "cd_id") %>%
+  mutate(
+    week_cd       = treat_start_week_cd + weeks(rel_week_cd),
+    post_pass_cd  = ifelse(rel_week_cd >= 0, 1L, 0L)
+  ) %>%
+  left_join(calls_weekly_cd, by = c("cd_id", "week_cd")) %>%
+  mutate(calls_cd = replace_na(calls_cd, 0L))
+
+############################################
+# (Optional) drop CDs with all-zero calls in the window
+############################################
+panel_event_cd <- panel_event_cd %>%
+  group_by(cd_id) %>%
+  filter(sum(calls_cd, na.rm = TRUE) > 0) %>%
+  ungroup()
+
+```
+
+# Exploratory Data Analysis
+
+Flag "bias NTAs" High calls before PASS + no drop afterward = bias.
+
+```{r}
+# define "high pre-PASS call volume" (top 25%)
+q75_pre  <- quantile(drops$actual_pre,  0.7, na.rm = TRUE)
+# define "large drop_score" (top 25%)
+q75_drop <- quantile(drops$drop_score, 0.7, na.rm = TRUE)
+
+biased_areas <- drops %>%
+  mutate(
+    high_pre      = actual_pre >= q75_pre,
+    high_drop_scr = drop_score >= q75_drop,
+    bias_flag     = high_pre & high_drop_scr
+  ) %>%
+  arrange(desc(drop_score))
+
+# Look at the top bias NTAs
+biased_areas %>%
+  filter(bias_flag) %>%
+  head()
+
+```
+
+NTAs with many PASS inspections in 2024
+
+Among those, which NTAs still had high 311 rat complaint volumes in 2024
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+passes_2024 <- rat_inspection %>%
+  mutate(
+    area_id = nta_code,
+    inspection_datetime = ymd_hms(inspection_date),
+    year = year(inspection_datetime)
+  ) %>%
+  filter(
+    year == 2024,
+    result == "Passed",
+    !is.na(area_id)
+  ) %>%
+  group_by(area_id) %>%
+  summarise(
+    n_pass_2024 = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(n_pass_2024))
+
+passes_2024 %>% head()
+
+calls_2024 <- rat311_with_nta_df %>%
+  mutate(
+    area_id = NTA2020,
+    year = year(created_date)
+  ) %>%
+  filter(
+    year == 2024,
+    !is.na(area_id)
+  ) %>%
+  group_by(area_id) %>%
+  summarise(
+    calls_2024 = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(calls_2024))
+
+calls_2024 %>% head()
+
+library(tidyr)
+
+pass_call_2024 <- passes_2024 %>%
+  left_join(calls_2024, by = "area_id") %>%
+  mutate(
+    calls_2024 = replace_na(calls_2024, 0)
+  ) %>%
+  arrange(desc(n_pass_2024), desc(calls_2024))
+
+pass_call_2024 %>% head()
+
+high_pass_threshold <- quantile(pass_call_2024$n_pass_2024, 0.75, na.rm = TRUE)
+high_call_threshold <- quantile(pass_call_2024$calls_2024, 0.75, na.rm = TRUE)
+
+suspicious_areas_2024 <- pass_call_2024 %>%
+  mutate(
+    high_pass  = n_pass_2024 >= high_pass_threshold,
+    high_calls = calls_2024 >= high_call_threshold,
+    mismatch   = high_pass & high_calls
+  ) %>%
+  filter(mismatch) %>%
+  arrange(desc(n_pass_2024), desc(calls_2024))
+
+suspicious_areas_2024
+```
+
+
+If you **don’t** have `NTAName`, use this version instead:
+
+```{r}
+library(dplyr)
+library(knitr)
+
+table_data <- suspicious_areas_2024 %>%
+  select(
+    area_id,
+    n_pass_2024,
+    calls_2024
+  ) %>%
+  arrange(desc(n_pass_2024), desc(calls_2024))
+
+kable(
+  table_data,
+  col.names = c(
+    "NTA Code",
+    "PASS Inspections",
+    "311 Rat Complaints"
+  ),
+  caption = "NTAs with many PASS inspections and high 311 rat complaints in 2024"
+)
+
+```
+
+
+# Statistical Analysis
+
+I constructed a monthly panel of rat-related 311 complaints by neighborhood and identified the month of the first PASS rat inspection in each neighborhood. We then estimated a Poisson regression with neighborhood and month fixed effects, where the key explanatory variable was an indicator for months after the first PASS inspection. This is a difference-in-differences specification that compares changes in 311 complaints before and after PASS inspections, net of neighborhood-specific constants and citywide time trends (seasonality, policy changes, etc.).
+
+Using the fitted model, we calculated, for each neighborhood, the expected reduction in 311 complaints after PASS and compared this to the observed reduction. We defined a Complaint Drop Score as the difference between the expected and observed decreases in complaints. Neighborhoods with high pre-inspection complaint volume and a large Complaint Drop Score are interpreted as 311 reporting bias hotspots: areas where inspections clear the neighborhood (PASS) but residents continue to file 311 rat complaints at unusually high rates.
+
+Prepare 311 calls and inspections by month and find when the area first received a "pass" result on their inspection.
+
+## Experiment Design
+
+Units:
+Treatment:
+
+DiD Choice
+
+## Check Assumptions
+
+## DiD Model Estimates
+
+### 150m Radius Model
+
+```{r}
+## 11. Fit Poisson DiD model using fixed-effects Poisson using fixest package---------------------------------------
+library(fixest)
+
+m150_w <- fepois(
+  calls_w ~ post_pass_w | neigh_id_w,
+  data = panel_neigh_w,
+  vcov = ~ neigh_id_w
+)
+
+etable(m150_w)
+
+## 12. (Optional) Event-time plot around PASS ----------------------
+panel_neigh_es <- panel_neigh %>%
+  mutate(
+    # much faster than interval() %/% months(1)
+    event_month = (year(call_month) - year(first_pass_month)) * 12L +
+                  (month(call_month) - month(first_pass_month))
+  ) %>%
+  # OPTIONAL: restrict to a reasonable window so plot & group_by are lighter
+  filter(event_month >= -24, event_month <= 24) %>%   # e.g. -2 years to +2 years
+  group_by(event_month) %>%
+  summarise(
+    mean_calls = mean(calls),
+    .groups    = "drop"
+  )
+
+ggplot(panel_neigh_es, aes(x = event_month, y = mean_calls)) +
+  geom_line() +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(
+    title = paste0("Avg 311 Rat Calls within 150m of PASS Locations"),
+    x     = "Months since first PASS (event time)",
+    y     = "Mean calls per neighborhood-month"
+  ) +
+  theme_minimal()
+```
+
+
+### NTA Model
+
+Fit the difference-in-differences Poisson model. The coefficient on post_pass = average effect of PASS inspections on calls across the city. Fit the model using factor columns.
+
+```{r}
+model <- glm(
+  calls ~ post_pass + area_id,
+  data   = panel_event,
+  family = poisson(link = "log")
+)
+
+summary(model)
+
+# Using fixest
+library(fixest)
+
+m <- fepois(
+  calls ~ post_pass | area_id,
+  data = panel_event,
+  vcov = ~ area_id   # cluster by area
+)
+
+etable(m)
+```
+
+Compute "complaint drop" vs "expected drop" per NTA.
+
+actual_drop = how much calls actually fell after PASS
+
+pred_drop = how much the model says they should have fallen
+
+drop_score = pred_drop – actual_drop
+
+Big positive drop_score = “calls didn’t drop as much as expected” → bias signal.
+
+```{r}
+# Predicted calls from the model
+panel_event$pred_calls <- predict(model, newdata = panel_event, type = "response")
+
+# Pre/post averages and DropScore
+drops <- panel_event %>%
+  group_by(area_id) %>%
+  summarise(
+    actual_pre  = mean(calls[post_pass == 0], na.rm = TRUE),
+    actual_post = mean(calls[post_pass == 1], na.rm = TRUE),
+    pred_pre    = mean(pred_calls[post_pass == 0], na.rm = TRUE),
+    pred_post   = mean(pred_calls[post_pass == 1], na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    actual_drop = actual_pre - actual_post,
+    pred_drop   = pred_pre   - pred_post,
+    drop_score  = pred_drop  - actual_drop
+  )
+
+```
+
+To ensure a stable estimate of pre- and post-inspection complaint levels, we required each NTA to have at least three months of data before and after its first PASS inspection. This threshold balances statistical precision with sample retention. As a robustness check, we estimated the model with a six-month threshold and obtained substantively similar results, indicating that the findings are not sensitive to the choice of window length.
+
+# DID visual
+```{r}
+panel_event <- panel %>%
+  mutate(
+    event_month = interval(first_pass_month, month) %/% months(1)
+  )
+
+avg_event <- panel_event %>%
+  group_by(event_month) %>%
+  summarise(mean_calls = mean(calls, na.rm = TRUE))
+
+library(ggplot2)
+
+ggplot(avg_event, aes(x = event_month, y = mean_calls)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Average 311 Rat Calls Relative to First PASS Inspection",
+    x = "Months Since First PASS",
+    y = "Mean 311 Calls"
+  ) +
+  theme_minimal()
+
+```
+
+### Community District Model
+
+```{r}
+
+############################################
+# Model
+############################################
+m_cd <- fepois(
+  calls_cd ~ post_pass_cd | cd_id,
+  data = panel_event_cd,
+  vcov = ~ cd_id
+)
+
+etable(m_cd)
+
+```
+
+
+## DiD Interpretation
+
+Comparative Point Plot Across Spatial Scales
+
+```{r}
+# Helper: convert log effect + SE into percent change + 95% interval
+to_pct_ci <- function(beta, se, z = 1.96) {
+  lo <- beta - z * se
+  hi <- beta + z * se
+
+  c(
+    estimate_pct = (exp(beta) - 1) * 100,
+    lower_pct    = (exp(lo)   - 1) * 100,
+    upper_pct    = (exp(hi)   - 1) * 100
+  )
+}
+
+# 1) Community Districts: m_cd (fixest::fepois), coefficient is post_pass_cd
+b_cd  <- coef(m_cd)[["post_pass_cd"]]
+se_cd <- se(m_cd)[["post_pass_cd"]]
+ci_cd <- to_pct_ci(b_cd, se_cd)
+
+# 2) 150m: m150_w (fixest::fepois), coefficient is post_pass_w
+b_150  <- coef(m150_w)[["post_pass_w"]]
+se_150 <- se(m150_w)[["post_pass_w"]]
+ci_150 <- to_pct_ci(b_150, se_150)
+
+# 3) NTA: model (glm), coefficient is post_pass
+b_nta  <- coef(summary(model))["post_pass", "Estimate"]
+se_nta <- coef(summary(model))["post_pass", "Std. Error"]
+ci_nta <- to_pct_ci(b_nta, se_nta)
+
+# Combine into one table (ready for a comparative point plot)
+results_all <- data.frame(
+  scale = c("150m radius", "NTA", "Community District"),
+  estimate_pct = c(ci_150["estimate_pct"], ci_nta["estimate_pct"], ci_cd["estimate_pct"]),
+  lower_pct    = c(ci_150["lower_pct"],    ci_nta["lower_pct"],    ci_cd["lower_pct"]),
+  upper_pct    = c(ci_150["upper_pct"],    ci_nta["upper_pct"],    ci_cd["upper_pct"]),
+  row.names = NULL
+)
+
+results_all
+
+```
+
+# Conclusion/ Further Steps
