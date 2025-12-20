@@ -626,10 +626,6 @@ A distance-based neighborhood radius was constructed around each passed inspecti
 
 ```{r}
 # Aggregate 311 calls weekly so each NTA has number of calls per week
-library(dplyr)
-library(lubridate)
-library(tidyr)
-
 # 1) Weekly calls by NTA x calendar week (same as you have)
 calls_weekly <- rat311_with_nta_df %>%
   mutate(
@@ -679,16 +675,9 @@ panel_event <- event_grid %>%
 ### Community District Level
 
 ```{r}
-library(dplyr)
-library(lubridate)
-library(tidyr)
-library(fixest)
-
 window_w <- 8
 
-############################################
 # 1) Weekly calls by CD x calendar week
-############################################
 calls_weekly_cd <- rat311_with_cd_df %>%
   mutate(
     week_cd  = floor_date(created_date, "week", week_start = 1),
@@ -698,9 +687,7 @@ calls_weekly_cd <- rat311_with_cd_df %>%
   group_by(cd_id, week_cd) %>%
   summarise(calls_cd = n(), .groups = "drop")
 
-############################################
 # 2) First PASS week by CD + treat_start_week
-############################################
 pass_times_cd <- rat_inspection_with_cd_df %>%
   mutate(
     cd_id     = as.character(BoroCD),
@@ -715,17 +702,13 @@ pass_times_cd <- rat_inspection_with_cd_df %>%
     .groups = "drop"
   )
 
-############################################
 # 3) Event-centered grid: CD x rel_week
-############################################
 event_grid_cd <- expand.grid(
   cd_id      = unique(pass_times_cd$cd_id),
   rel_week_cd = -window_w:window_w
 )
 
-############################################
 # 4) Map rel_week -> calendar week, join calls, fill zeros
-############################################
 panel_event_cd <- event_grid_cd %>%
   left_join(pass_times_cd, by = "cd_id") %>%
   mutate(
@@ -735,9 +718,7 @@ panel_event_cd <- event_grid_cd %>%
   left_join(calls_weekly_cd, by = c("cd_id", "week_cd")) %>%
   mutate(calls_cd = replace_na(calls_cd, 0L))
 
-############################################
-# (Optional) drop CDs with all-zero calls in the window
-############################################
+# Drop CDs with all-zero calls in the window
 panel_event_cd <- panel_event_cd %>%
   group_by(cd_id) %>%
   filter(sum(calls_cd, na.rm = TRUE) > 0) %>%
