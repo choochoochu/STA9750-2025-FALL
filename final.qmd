@@ -937,7 +937,7 @@ pass_call_cd_2024 |>
     calls_2024  = comma(calls_2024)
   ) |>
   kable(
-    col.names = c("Community District", "Passed Inspections (2024)", "311 Complaints (2024)"),
+    col.names = c("Community District", "Passed Inspections", "311 Complaints"),
     align = c("l", "r", "r"),
     caption = "Top Community Districts by passed inspections and their 311 complaint volume (2024)."
   ) |>

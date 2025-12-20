@@ -10,6 +10,17 @@ website:
     Course Projects for STA 9750 at Baruch College
   site-url: "https://choochoochu.github.io/STA9750-2025-FALL/"
   navbar:
+    left:
+      - text: Netflix Press Release
+        file: mp01.qmd
+      - text: YIMBY Policy Brief
+        file: mp02.qmd
+      - text: NYC Tree Proposal
+        file: mp03.qmd
+      - text: BLS Fact Check
+        file: mp04.qmd
+      - text: About Me
+        file: index.qmd
     background: light
     foreground: dark
     search: false
