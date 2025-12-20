@@ -19,6 +19,8 @@ website:
         file: mp03.qmd
       - text: BLS Fact Check
         file: mp04.qmd
+      - text: Measurement Bias in Spatial Scales
+        file: final.qmd
       - text: About Me
         file: index.qmd
     background: light
