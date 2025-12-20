@@ -196,7 +196,7 @@ rat_inspection <- rat_inspection |>
 
 ### 311 Rodent Complaints
 
-The New York City 311 Rodent Complaints data set contains records of non-emergency service requests submitted by residents reporting rodent sightings and related issues. This data set is compiled and made publicly available through the NYC Open Data portal and includes complaints submitted to the [NYC 311 service system](https://data.cityofnewyork.us/Social-Services/311-Rodent-Complaints/cvf2-zn8s/about_data). The data set contains approximately 492,000 records and spans from January 2010 through December 2025. Each record represents an individual complaint and includes information such as the date the complaint was submitted, complaint type, location details, and additional service request attributes. The 311 Rodent Complaints data set provides a comprehensive view of public reporting of rodent activity across New York City and is particularly valuable for researchers and urban planners studying urban wildlife interactions, public health concerns, and neighborhood-level patterns in rodent reporting behavior.
+The New York City 311 Rodent Complaints data set contains records of service requests submitted by residents reporting rodent sightings. This dataset is compiled and made publicly available through the NYC Open Data portal and from the [NYC 311 service system](https://data.cityofnewyork.us/Social-Services/311-Rodent-Complaints/cvf2-zn8s/about_data). It contains approximately 492,000 records and spans from January 2010 through December 2025. Each record includes information such as the date the complaint was submitted, complaint type, and location details.
 
 ```{r}
 #' Download and assemble NYC 311 rodent complaint records from NYC Open Data.
@@ -284,7 +284,7 @@ rodent_complaints <- get_rodent_complaints()
 
 ### Neighborhood Tabulation Areas (NTA)
 
-The 2020 [New York City Neighborhood Tabulation Area](https://www.nyc.gov/content/planning/pages/resources/datasets/neighborhood-tabulation) (NTA) boundary polygons were downloaded from an ArcGIS REST service provided by the City of New York. These polygons define standardized neighborhood units commonly used for demographic and public health analyses. The boundary file was cached locally to ensure reproducibility and loaded as a spatial object, then transformed to the EPSG:4326 coordinate reference system to align with the rodent inspection and 311 complaint data. A lookup table mapping NTA names to their official NTA codes was also created to facilitate consistent joins across datasets.
+The 2020 [New York City Neighborhood Tabulation Area](https://www.nyc.gov/content/planning/pages/resources/datasets/neighborhood-tabulation) (NTA) boundary polygons were downloaded from an ArcGIS REST service provided by the City of New York. These polygons define standardized neighborhood units commonly used for demographic and public health analyses. The boundary file was cached locally to ensure reproducibility and loaded as a spatial object, then transformed to align with the rodent inspection and 311 complaint data.
 
 ```{r}
 #' Download and load NYC Neighborhood Tabulation Area (NTA) boundary polygons.
@@ -339,7 +339,7 @@ nta <- load_nta_boundaries()
 
 ### Community Districts
 
-The New York City [Community District](https://www.nyc.gov/content/planning/pages/resources/datasets/community-districts) boundary polygons were downloaded from the NYC Department of City Planning’s dataset, using an ArcGIS REST endpoint that provides the boundaries in GeoJSON format. The boundary file was cached locally to support reproducible analyses and to avoid repeated requests to the hosting server. The polygons were then loaded as an sf object and transformed to EPSG:4326 to ensure compatibility with the coordinate reference system used by the rodent inspection and 311 complaint datasets. For spatial joins, the Community District identifier was retained along with the district geometries.
+The New York City [Community District](https://www.nyc.gov/content/planning/pages/resources/datasets/community-districts) boundary polygons were downloaded from the NYC Department of City Planning’s dataset, using an ArcGIS REST endpoint that provides the boundaries in GeoJSON format. The boundary file was also cached locally.
 
 ```{r}
 #' Download and load NYC Community District boundary polygons.
@@ -490,7 +490,7 @@ rat311_with_cd_df <- add_cd_to_points(rodent_complaints)
 
 ## Data Construction
 
-In order to implement a event-centered difference-in-differences design, balanced panels were constructed around the timing of passed rodent inspections. For each spatial scale, inspection events were treated as the focal intervention, and 311 rodent complaints were organized relative to the first passed inspection within a given geographic unit. All panels were constructed at a weekly resolution and include both pre- and post-inspection periods, with zero-complaint weeks explicitly retained to support count-based modeling.
+In order to implement a event-centered difference-in-differences design, balanced panels were constructed around the timing of passed rodent inspections. For each spatial scale, inspection events were treated as the focal intervention, and 311 rodent complaints were organized relative to the first passed inspection within a given geographic unit. All panels were constructed at the weekly level and retain weeks with zero complaints.
 
 ### 150 Meter Radius
 
@@ -620,7 +620,7 @@ panel_neigh_w <- panel_neigh_w %>%
   select(-total_calls_w)
 ```
 
-A distance-based neighborhood radius was constructed around each passed inspection to capture localized responses in 311 complaints. A 150-meter radius was selected to reflect the spatial range over which an inspection could influence nearby complaint behavior while minimizing spillovers from unrelated areas. Each complaint was linked to its nearest passed inspection within this radius, creating inspection-centered neighborhoods that remain fixed over time. Complaint counts were aggregated weekly, and a balanced panel was constructed around the inspection event. Due to data availability limitations, the analysis does not extend to an eight-week post-inspection window. However, exploratory analyses using longer windows where possible indicate that expanding the temporal window does not materially change the results, as 311 complaint volumes tend to decline following a passed inspection and then flatten rather than exhibit renewed fluctuations at longer horizons.
+A distance-based neighborhood radius was constructed around each passed inspection to capture localized responses in 311 complaints. A 150-meter radius was selected to reflect the spatial range over which an inspection could influence nearby complaint behavior while minimizing spillovers from unrelated areas. Each complaint was linked to its nearest passed inspection within this radius, creating inspection-centered neighborhoods that remain fixed over time. Complaint counts were aggregated weekly, and a balanced panel was constructed around the inspection event.
 
 ### NTA Level
 
@@ -674,7 +674,7 @@ panel_event <- event_grid %>%
 # table(panel$post_pass)
 ```
 
-311 rodent complaints and inspection dates were aggregated to weekly counts within each Neighborhood Tabulation Area (NTA), and inspection records were used to identify the first passed rodent inspection in each NTA. The first treatment period is defined to begin in the week following the inspection to avoid conflicting inspection-day reporting with post-inspection behavioral or environmental changes. An event-centered panel was constructed by expanding each NTA across a fixed window of relative weeks around the inspection event and merging in weekly complaint counts. 
+311 rodent complaints and inspection data were aggregated to weekly counts within each Neighborhood Tabulation Area (NTA), and inspection records were used to identify the first passed rodent inspection in each NTA with a 8-week window before and after. The first treatment period is defined to begin in the week following the inspection to avoid conflicting inspection-day reporting with post-inspection behavioral or environmental changes. An event-centered panel was constructed by expanding each NTA across a fixed window of relative weeks around the inspection event and merging in weekly complaint counts. 
 
 ### Community District Level
 
@@ -745,7 +745,7 @@ panel_event_cd <- panel_event_cd %>%
 
 ```
 
-As with the NTA analysis, a symmetric 8-week window before and after the inspection was used. Weekly complaint counts were aligned to event time, to enable direct comparison across spatial scales.
+As with the NTA analysis, a symmetric window was used and were aligned to event time, to enable direct comparison across spatial scales.
 
 # Exploratory Data Analysis
 
@@ -829,7 +829,8 @@ pass_call_2024 %>%
   ) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
-The table above presents NTAs that fall at or above the 75th percentile for both passed rodent inspections and 311 rodent-related complaint counts in 2024. By restricting attention to neighborhoods that simultaneously rank high on both measures, the table highlights areas where frequent inspection activity co-occurs with high levels of resident reporting. The presence of NTAs with elevated complaint volumes despite a large number of passed inspections suggests that inspection outcomes may not fully reflect underlying rodent pressure, or that reporting behavior differs across neighborhoods. The table underscores potential spatial bias in relying on either passed inspection counts or 311 complaints alone as indicators of rodent prevalence and demonstrates the value of examining their overlap when assessing NTA level rodent activity.
+
+The table above presents NTAs that fall at or above the 75th percentile for both passed rodent inspections and 311 rodent-related complaint counts in 2024. By restricting to neighborhoods that rank high on both measures, the table highlights areas where frequent inspection activity co-occurs with high levels of resident reporting that year. The data indicates a presence of NTAs with elevated complaint volumes despite a large number of passed inspections in areas like Bedford-Stuyvesant.
 
 ```{r}
 # Create flags (including mismatch) ONCE
@@ -884,21 +885,43 @@ ggplot(df, aes(x = x, y = y)) +
   )
 
 ```
-These areas are plotted above, with NTAs that fall in the top quartile of both passed rodent inspections and 311 complaint volumes highlighted. The axes are shown on a logarithmic scale to accommodate the wide range of inspection and complaint counts across neighborhoods and to make proportional differences more comparable across NTAs. The resulting plot reveals a generally positive association between passed inspections and complaint volume, reflecting shared scaling with neighborhood activity, inspection intensity, and reporting behavior. Notably, even among NTAs with very high numbers of passed inspections, complaint volumes remain elevated
+This plot shows a positive association between passed inspections and complaint volume at the NTA level, with top-quartile NTAs highlighted. Even so, since inspections are triggered by complaints, this pattern likely reflects inspection targeting rather than changes in rat conditions, underscoring the need for an event-based analysis.
 
 ```{r}
-# 2024 PASSES by CD
+# Convert numeric BoroCD (e.g., 303) -> "BK03"
+to_cd_code <- function(borocd) {
+  borocd <- as.integer(borocd)
+  borough_num <- borocd %/% 100
+  dist_num    <- borocd %% 100
+
+  borough_code <- case_when(
+    borough_num == 1 ~ "MN",
+    borough_num == 2 ~ "BX",
+    borough_num == 3 ~ "BK",
+    borough_num == 4 ~ "QN",
+    borough_num == 5 ~ "SI",
+    TRUE ~ NA_character_
+  )
+
+  paste0(borough_code, sprintf("%02d", dist_num))
+}
+
+# 2024 PASSED inspections by Community District
 passes_cd_2024 <- rat_inspection_with_cd_df %>%
-  mutate(cd_id = as.character(BoroCD),
-         year  = year(inspection_date)) %>%
+  mutate(
+    cd_id = to_cd_code(BoroCD),
+    year  = year(inspection_date)
+  ) %>%
   filter(year == 2024, result == "Passed", !is.na(cd_id)) %>%
   group_by(cd_id) %>%
   summarise(n_pass_2024 = n(), .groups = "drop")
 
-# 2024 CALLS by CD
+# 2024 311 rodent complaints by Community District
 calls_cd_2024 <- rat311_with_cd_df %>%
-  mutate(cd_id = as.character(BoroCD),
-         year  = year(created_date)) %>%
+  mutate(
+    cd_id = to_cd_code(BoroCD),
+    year  = year(created_date)
+  ) %>%
   filter(year == 2024, !is.na(cd_id)) %>%
   group_by(cd_id) %>%
   summarise(calls_2024 = n(), .groups = "drop")
@@ -922,7 +945,7 @@ pass_call_cd_2024 |>
 
 ```
 
-The same analysis was conducted at the Community District level. The table above presents Community Districts that fall at or above the 75th percentile for both passed rodent inspections and 311 rodent-related complaint counts in 2024. The presence of Community Districts with elevated complaint volumes despite a large number of passed inspections suggests that inspection outcomes may not fully reflect underlying rodent pressure, or that reporting behavior differs across districts. The table shows potential spatial bias when assessing rodent activity at the Community District scale.
+The same analysis was conducted at the Community District level. The table above presents Community Districts that fall at or above the 75th percentile for both passed rodent inspections and 311 rodent-related complaint counts in 2024. Brooklyn's Community District 3 ranks at the top with 23,660 passed rodent inspections at 1,708 311 rodent complaints in 2024.
 
 ```{r}
 # Flags + plot
@@ -978,7 +1001,7 @@ ggplot(df_cd, aes(x = x, y = y)) +
   )
 
 ```
-As with the NTA-level analysis, both axes are displayed on a logarithmic scale to account for the substantial variation in inspection and complaint counts across districts and to facilitate comparison across orders of magnitude. The plot reveals a positive association between passed inspections and complaint volume at the district level. Several districts exhibit high complaint volumes despite large numbers of passed inspections, suggesting that inspection outcomes may not fully capture underlying rodent pressure or that reporting behavior varies systematically across districts. Again, the figure reinforces the impact of spatial scales when assessing rodent activity and highlights how aggregation to the Community District level increases discrepancies between using the 311 complaint data as indicator of rats.
+At the Community District level, complaint volume remains positively associated with inspection activity, reflecting inspection targeting. This descriptive pattern illustrates that aggregation preserves cross-sectional correlations but as said before, provides no insight into post-inspection dynamics, motivating the use of an event-based analysis.
 
 # Statistical Analysis Using Difference-in-Differences (DiD)
 
@@ -1045,7 +1068,7 @@ tidy_m |>
   kable_styling(full_width = FALSE)
 ```
 
-In contrast to the highly localized 150-meter analysis, the estimated effect at the NTA scale is negative but not statistically significant (β = −0.369, SE = 0.419, p = 0.378). This result suggests that when inspection outcomes and complaints are aggregated to broader neighborhood boundaries, any localized reduction in complaint activity following a passed inspection is no longer detectable. The loss of statistical significance at this scale highlights how spatial aggregation can obscure short-run, localized responses and underscores the importance of spatial resolution when using 311 complaints as indicators of rodent activity.
+In contrast to the highly localized 150-meter analysis, the estimated effect at the NTA scale is negative but not statistically significant (β = −0.369, SE = 0.419, p = 0.378). This result suggests that when inspection outcomes and complaints are aggregated to broader neighborhood boundaries, any localized reduction in complaint activity following a passed inspection is no longer detectable.
 
 ### Community District Model
 
@@ -1105,9 +1128,7 @@ plot(
 abline(v = 0, lty = 2)
 
 ```
-Event-time averages for inspection-centered neighborhoods exhibit a pronounced increase in complaint activity immediately prior to PASS inspections, reflecting the fact that inspections are triggered by accumulated complaints. For this reason, the identifying variation comes from comparing post-inspection outcomes to the immediate pre-inspection period rather than to distant pre-periods. The analysis therefore relies on a local parallel trends assumption, under which complaint levels would have remained at their pre-inspection level absent a PASS result.
-
-This also provides justification for the choice of a limited post-inspection window. Following the passed inspection (week 0), average 311 complaint counts drop sharply and then stabilize at a consistently low level, with no evidence of subsequent rebounds or cyclical fluctuations in the weeks that follow. This flattening of complaint activity indicates that the response to a passed inspection is concentrated in the immediate post-inspection period. As a result, extending the analysis to a longer ±8-week window would add little additional information and would not materially change the estimated effects. Instead, a shorter post-inspection window captures the relevant dynamics while avoiding unnecessary noise from more distant time periods.
+Event-time averages show a sharp increase in complaints immediately before a passed inspections, consistent with inspections being triggered by accumulated reports. Identification therefore relies on comparing post-inspection outcomes to the immediate pre-inspection period under a local parallel trends assumption. Following a passed inspection, complaint counts drop sharply and then stabilize, with no evidence of rebound. This concentration of effects in the immediate post-inspection period justifies the use of a short event window, as extending the window adds little information and primarily introduces noise.
 
 ```{r}
 avg_trend <- panel_event %>%
@@ -1261,17 +1282,37 @@ results_all |>
   ) |>
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
-The table reports the estimated percent change in weekly 311 rodent complaint counts following a passed inspection, along with 95% confidence intervals, across three spatial scales. At the most localized level—a 150-meter radius around each inspection—the estimated effect is a large and statistically significant reduction in complaints (−67.9%), with a narrow confidence interval that lies entirely below zero. This indicates a consistent short-run decline in complaint activity in the immediate vicinity of a passed inspection.
+
+The estimated percent change in weekly 311 rodent complaint counts following a passed inspection are presented, along with 95% confidence intervals, across three spatial scales. At the most localized level, the estimated effect is a large and statistically significant reduction in complaints (−67.9%), with a narrow confidence interval that lies entirely below zero. This indicates a consistent short-run decline in complaint activity in the immediate vicinity of a passed inspection.
 
 At the NTA level, the estimated effect remains negative (−30.9%) but is substantially less precise, as reflected in a wide confidence interval that spans both negative and positive values. This lack of precision suggests that any localized post-inspection decline in complaints is diluted when outcomes are aggregated to broader neighborhood boundaries.
 
 In contrast, the Community District–level estimate implies an extremely large positive percent change, with a correspondingly narrow confidence interval. This result should be interpreted with caution, as it reflects aggregation effects and model instability at a coarse spatial scale rather than a plausible causal increase in rodent complaints following inspections. The results highlight strong scale dependence in estimated post-inspection effects and underscore the importance of spatial resolution when using 311 complaint data to assess changes in rodent activity.
 
-## Top bias areas.
+# Discussion
 
-Flag "bias NTAs" High calls before PASS + no drop afterward = bias.
+## Key Findings: Connection to the Overarching Question
 
+1. **311 rodent complaints reflect rat activity only at highly localized spatial scales.**
+Within 150 meters of a passed inspection, complaint volumes decline sharply and significantly, indicating that fine-scale 311 data capture real, localized changes in rat conditions.
 
+2. **Spatial aggregation weakens and distorts this relationship.**
+At the NTA level, post-inspection effects become statistically insignificant, and at the Community District level estimates are unstable, reflecting spatial dilution rather than meaningful changes in rat activity.
 
+3. **Community District–level complaints primarily measure reporting behavior, not rat prevalence.**
+When aggregated to administrative boundaries, 311 complaint counts blend heterogeneous neighborhoods and reporting tendencies, allowing high complaint volumes to persist despite frequent passed inspections and obscuring true ecological risk.
 
-# Conclusion/ Further Steps
+## Recommendations for Research and Policy
+
+ - **Reconsider the use of Community District–level 311 complaints in Rat Mitigation Zones.**
+Aggregating rodent complaints at the Community District level obscures localized rat activity and emphasizes reporting behavior. Using these counts to designate or evaluate Rat Mitigation Zones risks misidentifying high-reporting areas as high-risk areas.
+
+ - **Prioritize fine-scale complaint metrics for policy targeting.**
+City agencies should rely on more localized measures—such as complaint density within small buffers around inspection sites or blocks—to better align data with how rat activity and inspections operate on the ground.
+
+ - **Treat spatial scale as a core design choice in future research.**
+Researchers using 311 complaints should test sensitivity across multiple spatial resolutions and avoid causal claims based on highly aggregated data. Combining 311 complaints with inspection outcomes and environmental indicators can help separate true rat risk from reporting behavior.
+
+# Conclusion
+
+In conclusion, this analysis demonstrates that the **usefulness of 311 rodent complaints depends on spatial scale.** At highly localized levels, complaints respond to passed inspections and reflect real changes in rat conditions. When aggregated to broader units such as Community Districts, complaint counts are dominated by reporting behavior rather than ecological risk. These findings caution against relying on aggregated 311 data for policy decisions like Rat Mitigation Zone designation and emphasize the need to align analytic scale with the localized nature of urban rat activity.
