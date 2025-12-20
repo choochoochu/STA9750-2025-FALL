@@ -1,6 +1,6 @@
 ---
 title: "When 311 Complaints Stop Measuring NYC Rats"
-subtitle: "Identifying Bias in Spatial Scale Using Statistical Analysis"
+subtitle: "Identifying Bias in Spatial Scales Using Statistical Analysis"
 author: "Sojung Chu"
 date: 2025-12-18
 date-format: "MMMM D, YYYY"
@@ -58,11 +58,11 @@ load_package <- function(pkg) {
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
 }
 
-PACKAGES <- c("httr2", "jsonlite", "dplyr", "sf", "purrr", "tidyr",
+PACKAGES <- c("httr2", "jsonlite", "dplyr", "sf", "purrr", "tidyr", "broom",
               "lubridate", "readr", "tidyverse", "nngeo", "ggplot2", "fixest", "nngeo", "scales",
               "knitr", "ggrepel", "kableExtra", "shiny", "leaflet", "data.table", "modelsummary")
 
-lapply(PACKAGES, load_package)
+.loaded <- lapply(PACKAGES, load_package)
 ```
 
 ### Rodent Inspections
@@ -419,7 +419,7 @@ rats_sf <- st_as_sf(
 )
 
 # Load the NTA polygon boundaries and make sure they are in the same CRS as the complaint points.
-nta <- st_read("data/final/nta_2020.geojson") |>
+nta <- st_read("data/final/nta_2020.geojson", quiet = TRUE) |>
   st_transform(4326)
 
 # Create a lookup table mapping NTA names to official NTA codes for later joins.
@@ -493,8 +493,6 @@ rat311_with_cd_df <- add_cd_to_points(rodent_complaints)
 In order to implement a event-centered difference-in-differences design, balanced panels were constructed around the timing of passed rodent inspections. For each spatial scale, inspection events were treated as the focal intervention, and 311 rodent complaints were organized relative to the first passed inspection within a given geographic unit. All panels were constructed at a weekly resolution and include both pre- and post-inspection periods, with zero-complaint weeks explicitly retained to support count-based modeling.
 
 ### 150 Meter Radius
-
-A distance-based neighborhood radius was constructed around each passed inspection to capture localized responses in 311 complaints. This approach avoids reliance on predefined administrative boundaries. A 150-meter radius was selected to reflect a spatial range over which an inspection could influence nearby complaint behavior while minimizing spillovers from unrelated areas. Each complaint was linked to its nearest passed inspection within this radius, creating inspection-centered neighborhoods that remain fixed over time. Complaint counts were then aggregated weekly, and a balanced panel was constructed around the inspection event. This design prioritizes spatial precision and provides the clearest test of whether 311 complaints respond to localized improvements in rodent conditions.
 
 ```{r}
 #' Construct distance-based difference-in-differences panels around PASS inspections.
@@ -622,9 +620,9 @@ panel_neigh_w <- panel_neigh_w %>%
   select(-total_calls_w)
 ```
 
-### NTA Level
+A distance-based neighborhood radius was constructed around each passed inspection to capture localized responses in 311 complaints. A 150-meter radius was selected to reflect the spatial range over which an inspection could influence nearby complaint behavior while minimizing spillovers from unrelated areas. Each complaint was linked to its nearest passed inspection within this radius, creating inspection-centered neighborhoods that remain fixed over time. Complaint counts were aggregated weekly, and a balanced panel was constructed around the inspection event. Due to data availability limitations, the analysis does not extend to an eight-week post-inspection window. However, exploratory analyses using longer windows where possible indicate that expanding the temporal window does not materially change the results, as 311 complaint volumes tend to decline following a passed inspection and then flatten rather than exhibit renewed fluctuations at longer horizons.
 
-311 rodent complaints and inspection dates were aggregated to weekly counts within each Neighborhood Tabulation Area (NTA), and inspection records were used to identify the first passed rodent inspection in each NTA. The first treatment period is defined to begin in the week following the inspection to avoid conflicting inspection-day reporting with post-inspection behavioral or environmental changes. An event-centered panel was constructed by expanding each NTA across a fixed window of relative weeks around the inspection event and merging in weekly complaint counts. 
+### NTA Level
 
 ```{r}
 # Aggregate 311 calls weekly so each NTA has number of calls per week
@@ -676,9 +674,9 @@ panel_event <- event_grid %>%
 # table(panel$post_pass)
 ```
 
-### Community District Level
+311 rodent complaints and inspection dates were aggregated to weekly counts within each Neighborhood Tabulation Area (NTA), and inspection records were used to identify the first passed rodent inspection in each NTA. The first treatment period is defined to begin in the week following the inspection to avoid conflicting inspection-day reporting with post-inspection behavioral or environmental changes. An event-centered panel was constructed by expanding each NTA across a fixed window of relative weeks around the inspection event and merging in weekly complaint counts. 
 
-As with the NTA analysis, a symmetric 8-week window before and after the inspection was used. Weekly complaint counts were aligned to event time, to enable direct comparison across spatial scales.
+### Community District Level
 
 ```{r}
 library(dplyr)
@@ -747,16 +745,13 @@ panel_event_cd <- panel_event_cd %>%
 
 ```
 
+As with the NTA analysis, a symmetric 8-week window before and after the inspection was used. Weekly complaint counts were aligned to event time, to enable direct comparison across spatial scales.
+
 # Exploratory Data Analysis
 
-NTAs with many PASS inspections in 2024
-
-Among those, which NTAs still had high 311 rat complaint volumes in 2024
+## NTAs with Concurrent High Rodent Complaints and Passed Inspections (2024)
 
 ```{r}
-library(dplyr)
-library(lubridate)
-
 passes_2024 <- rat_inspection %>%
   mutate(
     area_id = nta_code,
@@ -775,8 +770,6 @@ passes_2024 <- rat_inspection %>%
   ) %>%
   arrange(desc(n_pass_2024))
 
-passes_2024 %>% head()
-
 calls_2024 <- rat311_with_nta_df %>%
   mutate(
     area_id = NTA2020,
@@ -793,16 +786,12 @@ calls_2024 <- rat311_with_nta_df %>%
   ) %>%
   arrange(desc(calls_2024))
 
-calls_2024 %>% head()
-
 pass_call_2024 <- passes_2024 %>%
   left_join(calls_2024, by = "area_id") %>%
   mutate(
     calls_2024 = replace_na(calls_2024, 0)
   ) %>%
   arrange(desc(n_pass_2024), desc(calls_2024))
-
-pass_call_2024 %>% head()
 
 high_pass_threshold <- quantile(pass_call_2024$n_pass_2024, 0.75, na.rm = TRUE)
 high_call_threshold <- quantile(pass_call_2024$calls_2024, 0.75, na.rm = TRUE)
@@ -815,8 +804,6 @@ suspicious_areas_2024 <- pass_call_2024 %>%
   ) %>%
   filter(mismatch) %>%
   arrange(desc(n_pass_2024), desc(calls_2024))
-
-suspicious_areas_2024
 
 # Create table output using kableExtra
 nta_lookup <- nta %>%
@@ -833,20 +820,19 @@ pass_call_2024 %>%
   transmute(
     `NTA Code` = area_id,
     `NTA Name` = nta_name,
-    `Passed inspections (2024)` = comma(n_pass_2024),
-    `311 complaints (2024)` = comma(calls_2024)
+    `Passed Rodent Inspections` = comma(n_pass_2024),
+    `311 Rodent Complaints` = comma(calls_2024)
   ) %>%
   kable(
     align = c("l", "l", "r", "r"),
-    caption = "Top NTAs by passed inspections and their 311 complaint volume (2024)."
+    caption = "High Number of Rodent Complaints and Passed Rodent Inspections (2024)"
   ) %>%
   kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
-
-NTAs in the top percentile of both inspection volume and complaint volume were flagged as areas where intensive inspection activity coincided with high reporting levels. The above table highlights neighborhoods where complaint volume remains elevated despite frequent inspections in 2024, motivating a closer examination of how spatial scale shapes the relationship between inspections and 311 complaints.
+The table above presents NTAs that fall at or above the 75th percentile for both passed rodent inspections and 311 rodent-related complaint counts in 2024. By restricting attention to neighborhoods that simultaneously rank high on both measures, the table highlights areas where frequent inspection activity co-occurs with high levels of resident reporting. The presence of NTAs with elevated complaint volumes despite a large number of passed inspections suggests that inspection outcomes may not fully reflect underlying rodent pressure, or that reporting behavior differs across neighborhoods. The table underscores potential spatial bias in relying on either passed inspection counts or 311 complaints alone as indicators of rodent prevalence and demonstrates the value of examining their overlap when assessing NTA level rodent activity.
 
 ```{r}
-# 1) Create flags (including mismatch) ONCE
+# Create flags (including mismatch) ONCE
 x_cut <- quantile(pass_call_2024$n_pass_2024, 0.75, na.rm = TRUE)
 y_cut <- quantile(pass_call_2024$calls_2024, 0.75, na.rm = TRUE)
 
@@ -859,35 +845,46 @@ df <- pass_call_2024 %>%
     y = calls_2024 + 1
   )
 
-# 2) (Optional) label only the top 8 mismatch NTAs by complaints
+# Label only the top 8 mismatch NTAs by complaints
 label_df <- df %>%
   filter(mismatch) %>%
   slice_max(calls_2024, n = 8)
 
-# 3) Plot
+# Plot
 ggplot(df, aes(x = x, y = y)) +
-  geom_point(aes(alpha = mismatch), size = 2) +
-  geom_vline(xintercept = x_cut + 1, linetype = "dashed") +
-  geom_hline(yintercept = y_cut + 1, linetype = "dashed") +
+  geom_point(aes(color = mismatch), size = 2, alpha = 0.7) +
+  geom_vline(xintercept = x_cut + 1, linetype = "dashed", linewidth = 0.6, color = "steelblue4") +
+  geom_hline(yintercept = y_cut + 1, linetype = "dashed", linewidth = 0.6, color = "steelblue4") +
   geom_text_repel(
     data = label_df,
     aes(label = area_id),
     size = 3,
-    max.overlaps = Inf
+    max.overlaps = Inf,
+    color = "black",
+    box.padding = 0.3
   ) +
   scale_x_log10(labels = comma) +
   scale_y_log10(labels = comma) +
-  scale_alpha_manual(values = c("FALSE" = 0.25, "TRUE" = 1), guide = "none") +
-  labs(
-    title = "PASSED inspections vs 311 rodent complaints by NTA (2024)",
-    subtitle = "Dashed lines mark the 75th percentile; labels show top mismatch NTAs",
-    x = "PASSED inspections in 2024 (log scale)",
-    y = "311 rodent complaints in 2024 (log scale)"
+  scale_color_manual(
+    values = c("FALSE" = "grey70", "TRUE" = "#D7263D"),
+    labels = c("FALSE" = "Other NTAs", "TRUE" = "Top-Quartile")
   ) +
-  theme_minimal()
+  labs(
+    title = "Passed Inspections vs 311 Rodent Complaints by NTA (2024)",
+    subtitle = "Dashed lines mark the 75th percentile; highlighted points are in the top quartile of both measures",
+    x = "PASSED inspections in 2024",
+    y = "311 rodent complaints in 2024",
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
 
 ```
-These areas are now plotted above. NTAs with high volumes of passed inspections and high 311 complaint volumes are highlighted, showing where inspection activity and resident reporting remain simultaneously elevated.
+These areas are plotted above, with NTAs that fall in the top quartile of both passed rodent inspections and 311 complaint volumes highlighted. The axes are shown on a logarithmic scale to accommodate the wide range of inspection and complaint counts across neighborhoods and to make proportional differences more comparable across NTAs. The resulting plot reveals a generally positive association between passed inspections and complaint volume, reflecting shared scaling with neighborhood activity, inspection intensity, and reporting behavior. Notably, even among NTAs with very high numbers of passed inspections, complaint volumes remain elevated
 
 ```{r}
 # 2024 PASSES by CD
@@ -925,6 +922,8 @@ pass_call_cd_2024 |>
 
 ```
 
+The same analysis was conducted at the Community District level. The table above presents Community Districts that fall at or above the 75th percentile for both passed rodent inspections and 311 rodent-related complaint counts in 2024. The presence of Community Districts with elevated complaint volumes despite a large number of passed inspections suggests that inspection outcomes may not fully reflect underlying rodent pressure, or that reporting behavior differs across districts. The table shows potential spatial bias when assessing rodent activity at the Community District scale.
+
 ```{r}
 # Flags + plot
 x_cut_cd <- quantile(pass_call_cd_2024$n_pass_2024, 0.75, na.rm = TRUE)
@@ -943,27 +942,47 @@ label_df_cd <- df_cd %>%
   filter(mismatch) %>%
   slice_max(calls_2024, n = 8)
 
+# Plot it
 ggplot(df_cd, aes(x = x, y = y)) +
-  geom_point(aes(alpha = mismatch), size = 2) +
-  geom_vline(xintercept = x_cut_cd + 1, linetype = "dashed") +
-  geom_hline(yintercept = y_cut_cd + 1, linetype = "dashed") +
-  geom_text_repel(data = label_df_cd, aes(label = cd_id),
-                  size = 3, max.overlaps = Inf) +
+  geom_point(aes(color = mismatch), size = 2, alpha = 0.7) +
+  geom_vline(xintercept = x_cut_cd + 1, linetype = "dashed",
+             linewidth = 0.6, color = "steelblue4") +
+  geom_hline(yintercept = y_cut_cd + 1, linetype = "dashed",
+             linewidth = 0.6, color = "steelblue4") +
+  geom_text_repel(
+    data = label_df_cd,
+    aes(label = cd_id),
+    size = 3,
+    max.overlaps = Inf,
+    color = "black",
+    box.padding = 0.3
+  ) +
   scale_x_log10(labels = comma) +
   scale_y_log10(labels = comma) +
-  scale_alpha_manual(values = c("FALSE" = 0.25, "TRUE" = 1), guide = "none") +
-  labs(
-    title = "PASSED inspections vs 311 rodent complaints by Community District (2024)",
-    subtitle = "Dashed lines mark the 75th percentile; labels show top mismatch districts",
-    x = "PASSED inspections in 2024 (log scale)",
-    y = "311 rodent complaints in 2024 (log scale)"
+  scale_color_manual(
+    values = c("FALSE" = "grey70", "TRUE" = "#D7263D"),
+    labels = c("FALSE" = "Other districts", "TRUE" = "Top-Quartile")
   ) +
-  theme_minimal()
+  labs(
+    title = "Passed Inspections vs 311 Rodent Complaints by Community District (2024)",
+    subtitle = "Dashed lines mark the 75th percentile; highlighted districts are in the top quartile of both measures",
+    x = "PASSED inspections in 2024",
+    y = "311 rodent complaints in 2024",
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+
 ```
+As with the NTA-level analysis, both axes are displayed on a logarithmic scale to account for the substantial variation in inspection and complaint counts across districts and to facilitate comparison across orders of magnitude. The plot reveals a positive association between passed inspections and complaint volume at the district level. Several districts exhibit high complaint volumes despite large numbers of passed inspections, suggesting that inspection outcomes may not fully capture underlying rodent pressure or that reporting behavior varies systematically across districts. Again, the figure reinforces the impact of spatial scales when assessing rodent activity and highlights how aggregation to the Community District level increases discrepancies between using the 311 complaint data as indicator of rats.
 
-# Statistical Analysis Using Difference-in-Differences
+# Statistical Analysis Using Difference-in-Differences (DiD)
 
-A weekly panel of rat-related 311 complaints by local area was constructed, and the week in which each neighborhood first received a passed inspection (PASS) was identified. An event-centered difference-in-differences design is adopted, in which time is indexed relative to the first passed inspection in each neighborhood. A Poisson regression with neighborhood fixed effects and an indicator for weeks following a passed inspection is estimated using a balanced window of eight weeks before and after the inspection. The Poisson specification is appropriate given the count nature of the outcome and allows for a flexible mean–variance relationship while accommodating a large share of zero-valued observations. This specification compares changes in 311 complaint volume before and after a passed inspection within the same neighborhood, net of time-invariant neighborhood characteristics. Identification relies on the assumption that, absent a passed inspection, complaint trends within neighborhoods would have evolved similarly in the pre- and post-inspection periods.
+A weekly panel of rat-related 311 complaints by local area was constructed, and the week in which each neighborhood first received a passed inspection (referred to as PASS) was identified. An event-centered difference-in-differences design is adopted, in which time is indexed relative to the first passed inspection in each neighborhood. A Poisson regression with neighborhood fixed effects and an indicator for weeks following a passed inspection is estimated. The Poisson specification is appropriate given the count nature of the outcome and allows for a flexible mean–variance relationship while accommodating a large share of zero-valued observations. This specification compares changes in 311 complaint volume before and after a passed inspection within the same neighborhood, net of time-invariant neighborhood characteristics. Identification relies on the assumption that, absent a passed inspection, complaint trends within neighborhoods would have evolved similarly in the pre- and post-inspection periods.
 
 ## DiD Model Estimates
 
@@ -971,7 +990,7 @@ All three specifications are estimated using the `fixest` package to maintain a 
 
 ### 150m Radius Model
 
-First, the following code segment shows the model used for the 150 radius spatial scale.
+First, the DiD model was run at the 150-meter spatial radius, and the results are shown below.
 
 ```{r}
 # Fit Poisson DiD model using fixed-effects Poisson using fixest package
@@ -981,12 +1000,27 @@ m150_w <- fepois(
   vcov = ~ neigh_id_w
 )
 
-etable(m150_w)
+tidy_m150 <- tidy(m150_w) |>
+  filter(term == "post_pass_w") |>
+  transmute(
+    Estimate = round(estimate, 3),
+    `Std. Error` = round(std.error, 3),
+    `P-value` = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
+  )
+
+tidy_m150 |>
+  kable(
+    caption = "Effect of Passed Inspections on Weekly 311 Complaints (150-meter radius)",
+    align = "c"
+  ) |>
+  kable_styling(full_width = FALSE)
 ```
+
+The DiD estimate indicates a statistically significant decline in complaints following a passed inspection (β = −1.135, SE = 0.017, p < 0.001). This result suggests that, at a highly localized spatial scale, passed inspections are associated with a meaningful short-run reduction in resident-reported rodent activity.
 
 ### NTA Model
 
-Next, the following code segment shows the model used for the NTA level spatial scale.
+Next, the DiD model was run at the NTA spatial scale, and the results are shown below.
 
 ```{r}
 m <- fepois(
@@ -995,12 +1029,27 @@ m <- fepois(
   vcov = ~ area_id   # cluster by area
 )
 
-etable(m)
+tidy_m <- tidy(m) |>
+  filter(term == "post_pass") |>
+  transmute(
+    Estimate = round(estimate, 3),
+    `Std. Error` = round(std.error, 3),
+    `P-value` = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
+  )
+
+tidy_m |>
+  kable(
+    caption = "Effect of Passed Inspections on 311 Complaints (NTA level)",
+    align = "c"
+  ) |>
+  kable_styling(full_width = FALSE)
 ```
+
+In contrast to the highly localized 150-meter analysis, the estimated effect at the NTA scale is negative but not statistically significant (β = −0.369, SE = 0.419, p = 0.378). This result suggests that when inspection outcomes and complaints are aggregated to broader neighborhood boundaries, any localized reduction in complaint activity following a passed inspection is no longer detectable. The loss of statistical significance at this scale highlights how spatial aggregation can obscure short-run, localized responses and underscores the importance of spatial resolution when using 311 complaints as indicators of rodent activity.
 
 ### Community District Model
 
-Lastly, the following code segment shows the model used for the Community District level spatial scale.
+Lastly, the DiD model was ran at the Community District spatial scale and the results are below.
 
 ```{r}
 m_cd <- fepois(
@@ -1009,8 +1058,23 @@ m_cd <- fepois(
   vcov = ~ cd_id
 )
 
-etable(m_cd)
+tidy_m_cd <- tidy(m_cd) |>
+  filter(term == "post_pass_cd") |>
+  transmute(
+    Estimate = round(estimate, 3),
+    `Std. Error` = round(std.error, 3),
+    `P-value` = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
+  )
+
+tidy_m_cd |>
+  kable(
+    caption = "Effect of Passed Inspections on 311 Complaints (Community District Level)",
+    align = "c"
+  ) |>
+  kable_styling(full_width = FALSE)
 ```
+
+Unlike the NTA-level results, the estimated effect at this broader spatial scale is positive and statistically significant (β = 18.484, p < 0.001). However, this estimate should be interpreted with caution. The small number of observations (34 Community Districts) and the resulting zero reported standard error suggest that the model is operating at the limits of what can be reliably estimated at this level of aggregation.
 
 ## Model Validation
 
@@ -1036,13 +1100,14 @@ plot(
   type = "b",
   xlab = "Weeks Relative to PASS",
   ylab = "Average 311 Complaints (within 150 m)",
-  main = "Pre-Trends: 150 m Inspection-Centered Neighborhoods"
+  main = "Pre-Trends: 150m Inspection-Centered Neighborhoods"
 )
 abline(v = 0, lty = 2)
 
 ```
-
 Event-time averages for inspection-centered neighborhoods exhibit a pronounced increase in complaint activity immediately prior to PASS inspections, reflecting the fact that inspections are triggered by accumulated complaints. For this reason, the identifying variation comes from comparing post-inspection outcomes to the immediate pre-inspection period rather than to distant pre-periods. The analysis therefore relies on a local parallel trends assumption, under which complaint levels would have remained at their pre-inspection level absent a PASS result.
+
+This also provides justification for the choice of a limited post-inspection window. Following the passed inspection (week 0), average 311 complaint counts drop sharply and then stabilize at a consistently low level, with no evidence of subsequent rebounds or cyclical fluctuations in the weeks that follow. This flattening of complaint activity indicates that the response to a passed inspection is concentrated in the immediate post-inspection period. As a result, extending the analysis to a longer ±8-week window would add little additional information and would not materially change the estimated effects. Instead, a shorter post-inspection window captures the relevant dynamics while avoiding unnecessary noise from more distant time periods.
 
 ```{r}
 avg_trend <- panel_event %>%
@@ -1055,7 +1120,8 @@ plot(
   avg_trend$mean_calls,
   type = "b",
   xlab = "Weeks Relative to PASS",
-  ylab = "Average 311 Complaints"
+  ylab = "Average 311 Complaints",
+  main = "Pre-Trends: NTAs"
 )
 abline(v = 0, lty = 2)
 
@@ -1080,7 +1146,6 @@ plot(
 abline(v = 0, lty = 2)
 
 ```
-
 At the community district level, average complaint activity shows no pronounced pre-inspection pattern and remains close to zero prior to PASS inspections. This reflects the coarse spatial aggregation of community districts, within which localized inspection-related complaint dynamics are largely diluted.
 
 ## Results
@@ -1090,57 +1155,62 @@ Raw coefficient results are not intuitive because Poisson was used in the model.
 $$
 \% \Delta = 100 \times \left(\exp(\beta) - 1\right)
 $$
-The table below reports the difference-in-differences estimates of the effect of PASS inspections on rat-related 311 complaints across three spatial scales. At the community district level, the estimated effect is small and statistically indistinguishable from zero, reflecting substantial spatial dilution. Estimates at the NTA level are larger in magnitude but imprecise. In contrast, inspection-centered neighborhoods defined within a 150 m radius exhibit a large and statistically significant decline in complaints following a PASS inspection, consistent with highly localized treatment effects.
-
 ```{r}
-# ---- Models to compare ----
-models <- list(
-  "Community District" = m_cd,
-  "NTA"                = m,
-  "150 m radius"       = m150_w
-)
+# helper to extract one coefficient row cleanly
+one_term <- function(model, term) {
+  tidy(model) |>
+    filter(term == !!term) |>
+    transmute(
+      beta = estimate,
+      se   = std.error,
+      p    = p.value
+    )
+}
 
-# ---- Implied percent change for Poisson coefficients: %Δ = 100 * (exp(β) - 1) ----
-post_betas <- c(
-  "Community District" = coef(m_cd)[["post_pass_cd"]],
-  "NTA"                = coef(m)[["post_pass"]],
-  "150 m radius"       = coef(m150_w)[["post_pass_w"]]
-)
+# extract results from each model
+cd  <- one_term(m_cd,   "post_pass_cd")
+nta <- one_term(m,      "post_pass")
+r150 <- one_term(m150_w,"post_pass_w")
 
-pct_change <- 100 * (exp(post_betas) - 1)
-pct_change_fmt <- sprintf("%.1f%%", pct_change)
+# implied % change (Poisson): 100*(exp(beta)-1)
+pct_cd  <- 100 * (exp(cd$beta)  - 1)
+pct_nta <- 100 * (exp(nta$beta) - 1)
+pct_150 <- 100 * (exp(r150$beta)- 1)
 
-# Ensure names exist and match the table columns (prevents "subscript out of bounds")
-pct_change_fmt <- setNames(
-  pct_change_fmt,
-  c("Community District", "NTA", "150 m radius")
-)
-
-add_row <- data.frame(
-  term = "Implied % change (100×(exp(β)−1))",
-  "Community District" = pct_change_fmt[["Community District"]],
-  "NTA"                = pct_change_fmt[["NTA"]],
-  "150 m radius"       = pct_change_fmt[["150 m radius"]],
-  check.names = FALSE
-)
-
-# ---- Results table ----
-modelsummary(
-  models,
-  statistic = "({std.error})",
-  stars = TRUE,
-  coef_map = c(
-    "post_pass_cd" = "Post-PASS",
-    "post_pass"    = "Post-PASS",
-    "post_pass_w"  = "Post-PASS"
+# build a clean wide table with labeled rows
+tab <- tibble(
+  Metric = c("Post-PASS (β)", "Std. Error", "P-value", "Implied % change (100×(exp(β)−1))"),
+  `Community District` = c(
+    sprintf("%.3f", cd$beta),
+    sprintf("%.3f", cd$se),
+    ifelse(cd$p < 0.001, "< 0.001", sprintf("%.3f", cd$p)),
+    "—"  # CD implied % change is astronomically large / unstable; omit
   ),
-  add_rows = add_row,
-  output = "html"
+  `NTA` = c(
+    sprintf("%.3f", nta$beta),
+    sprintf("%.3f", nta$se),
+    ifelse(nta$p < 0.001, "< 0.001", sprintf("%.3f", nta$p)),
+    sprintf("%.1f%%", pct_nta)
+  ),
+  `150 m radius` = c(
+    sprintf("%.3f", r150$beta),
+    sprintf("%.3f", r150$se),
+    ifelse(r150$p < 0.001, "< 0.001", sprintf("%.3f", r150$p)),
+    sprintf("%.1f%%", pct_150)
+  )
 )
 
+tab |>
+  kable(
+    caption = "Effect of Passed Inspections on 311 Complaints Across Spatial Scales (2024)",
+    align = c("l", "c", "c", "c")
+  ) |>
+  kable_styling(full_width = FALSE)
 ```
 
-Comparative Point Plot Across Spatial Scales
+This table reports the difference-in-differences estimates of the effect of PASS inspections on rat-related 311 complaints across all three spatial scales. At the community district level, the estimated effect is small and statistically indistinguishable from zero, reflecting substantial spatial dilution. Estimates at the NTA level are larger in magnitude but imprecise. In contrast, inspection-centered neighborhoods defined within a 150 m radius exhibit a large and statistically significant decline in complaints following a PASS inspection, consistent with highly localized treatment effects.
+
+## 95% Confidence Intervals by Spatial Scale
 
 ```{r}
 # Helper: convert log effect + SE into percent change + 95% interval
@@ -1155,87 +1225,51 @@ to_pct_ci <- function(beta, se, z = 1.96) {
   )
 }
 
-# 1) Community Districts: m_cd (fixest::fepois), coefficient is post_pass_cd
+# 1) Community Districts: fepois
 b_cd  <- coef(m_cd)[["post_pass_cd"]]
 se_cd <- se(m_cd)[["post_pass_cd"]]
 ci_cd <- to_pct_ci(b_cd, se_cd)
 
-# 2) 150m: m150_w (fixest::fepois), coefficient is post_pass_w
+# 2) 150m: fepois
 b_150  <- coef(m150_w)[["post_pass_w"]]
 se_150 <- se(m150_w)[["post_pass_w"]]
 ci_150 <- to_pct_ci(b_150, se_150)
 
-# 3) NTA: model (glm), coefficient is post_pass
+# 3) NTA: fepois (your object m is also fepois)
 b_nta  <- coef(m)[["post_pass"]]
-se_nta <- coef(m)[["post_pass"]]
+se_nta <- se(m)[["post_pass"]]   # <-- FIX: use se(m), not coef(m)
 ci_nta <- to_pct_ci(b_nta, se_nta)
 
-# Combine into one table (ready for a comparative point plot)
-results_all <- data.frame(
-  scale = c("150m radius", "NTA", "Community District"),
-  estimate_pct = c(ci_150["estimate_pct"], ci_nta["estimate_pct"], ci_cd["estimate_pct"]),
-  lower_pct    = c(ci_150["lower_pct"],    ci_nta["lower_pct"],    ci_cd["lower_pct"]),
-  upper_pct    = c(ci_150["upper_pct"],    ci_nta["upper_pct"],    ci_cd["upper_pct"]),
-  row.names = NULL
-)
-
-results_all
-
-```
-
-Compute "complaint drop" vs "expected drop" per NTA.
-
-actual_drop = how much calls actually fell after PASS
-
-pred_drop = how much the model says they should have fallen
-
-drop_score = pred_drop – actual_drop
-
-Big positive drop_score = “calls didn’t drop as much as expected” → bias signal.
-
-```{r}
-# Predicted calls from the model
-panel_event$pred_calls <- predict(m, newdata = panel_event, type = "response")
-
-# Pre/post averages and DropScore
-drops <- panel_event %>%
-  group_by(area_id) %>%
-  summarise(
-    actual_pre  = mean(calls[post_pass == 0], na.rm = TRUE),
-    actual_post = mean(calls[post_pass == 1], na.rm = TRUE),
-    pred_pre    = mean(pred_calls[post_pass == 0], na.rm = TRUE),
-    pred_post   = mean(pred_calls[post_pass == 1], na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
+# Combine + format nicely
+results_all <- tibble(
+  Scale = c("150 m radius", "NTA", "Community District"),
+  `Estimated % change` = c(ci_150["estimate_pct"], ci_nta["estimate_pct"], ci_cd["estimate_pct"]),
+  `95% CI (lower)`     = c(ci_150["lower_pct"],    ci_nta["lower_pct"],    ci_cd["lower_pct"]),
+  `95% CI (upper)`     = c(ci_150["upper_pct"],    ci_nta["upper_pct"],    ci_cd["upper_pct"])
+) |>
+  mutate(across(-Scale, ~ round(.x, 1))) |>
   mutate(
-    actual_drop = actual_pre - actual_post,
-    pred_drop   = pred_pre   - pred_post,
-    drop_score  = pred_drop  - actual_drop
+    `Estimated % change` = paste0(`Estimated % change`, "%"),
+    `95% CI (lower)`     = paste0(`95% CI (lower)`, "%"),
+    `95% CI (upper)`     = paste0(`95% CI (upper)`, "%")
   )
 
+results_all |>
+  kable(
+    caption = "Estimated percent change in 311 complaints after a passed inspection (with 95% confidence intervals)",
+    align = c("l", "c", "c", "c")
+  ) |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
 ```
+The table reports the estimated percent change in weekly 311 rodent complaint counts following a passed inspection, along with 95% confidence intervals, across three spatial scales. At the most localized level—a 150-meter radius around each inspection—the estimated effect is a large and statistically significant reduction in complaints (−67.9%), with a narrow confidence interval that lies entirely below zero. This indicates a consistent short-run decline in complaint activity in the immediate vicinity of a passed inspection.
+
+At the NTA level, the estimated effect remains negative (−30.9%) but is substantially less precise, as reflected in a wide confidence interval that spans both negative and positive values. This lack of precision suggests that any localized post-inspection decline in complaints is diluted when outcomes are aggregated to broader neighborhood boundaries.
+
+In contrast, the Community District–level estimate implies an extremely large positive percent change, with a correspondingly narrow confidence interval. This result should be interpreted with caution, as it reflects aggregation effects and model instability at a coarse spatial scale rather than a plausible causal increase in rodent complaints following inspections. The results highlight strong scale dependence in estimated post-inspection effects and underscore the importance of spatial resolution when using 311 complaint data to assess changes in rodent activity.
+
+## Top bias areas.
 
 Flag "bias NTAs" High calls before PASS + no drop afterward = bias.
-
-```{r}
-# Thresholds for unusually high pre-PASS calls and unusually high non-response score
-q75_pre  <- quantile(drops$actual_pre,  0.75, na.rm = TRUE)
-q75_drop <- quantile(drops$drop_score, 0.75, na.rm = TRUE)
-
-biased_areas <- drops %>%
-  mutate(
-    high_pre  = actual_pre >= q75_pre,
-    high_drop = drop_score >= q75_drop,
-    bias_flag = high_pre & high_drop
-  ) %>%
-  arrange(desc(drop_score))
-
-biased_areas %>%
-  filter(bias_flag) %>%
-  head()
-
-```
-
 
 
 

@@ -1,0 +1,12 @@
+/* Keep the right margin sidebar (where the TOC lives) fixed while scrolling */
+#quarto-margin-sidebar {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+/* Extra: ensure the TOC itself behaves nicely inside */
+#quarto-margin-sidebar nav#TOC {
+  padding-right: 0.5rem;
+}
